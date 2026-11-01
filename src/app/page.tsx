@@ -193,7 +193,7 @@ export default function DashboardPage() {
                     Painel Operacional
                   </h1>
                   <p className="text-sm text-neutral-400 mt-1">
-                    Gerenciamento soberano de aplicações via <span className="text-white font-mono">aethel.config</span>
+                    Gerenciamento de aplicações via <span className="text-white font-mono">aethel.config</span>
                   </p>
                 </div>
 

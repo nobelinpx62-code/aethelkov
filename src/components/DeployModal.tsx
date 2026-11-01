@@ -116,7 +116,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-white">Novo Deploy de Instância</h3>
-            <p className="text-xs text-slate-400">Deploy soberano via aethel.config</p>
+            <p className="text-xs text-slate-400">Deploy simplificado via aethel.config</p>
           </div>
           <button
             onClick={onClose}

@@ -75,7 +75,7 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats }) => {
 
         {/* Sub-texto */}
         <div className="pt-3 border-t border-white/5 font-mono text-xs text-neutral-400">
-          Rede Soberana Aethelkov &bull; Alta Disponibilidade 24/7
+          Alta Disponibilidade 24/7
         </div>
       </div>
     </div>

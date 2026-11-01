@@ -8,7 +8,8 @@ import { DeployModal } from '@/components/DeployModal';
 import { BotDetailView } from '@/components/BotDetailView';
 import { AdminAuthModal } from '@/components/AdminAuthModal';
 import { AdminPanel } from '@/components/AdminPanel';
-import { AuthLandingView } from '@/components/AuthLandingView';
+import { PresentationLanding } from '@/components/PresentationLanding';
+import { LoginView } from '@/components/LoginView';
 import { GiftCelebrationModal } from '@/components/GiftCelebrationModal';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   // Estados de Autenticação Supabase (Discord OAuth & E-mail)
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [authView, setAuthView] = useState<'presentation' | 'login'>('presentation');
 
   // Estados do Modo Admin
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
@@ -249,19 +251,29 @@ export default function DashboardPage() {
           currentUser={currentUser}
           onSignOut={handleSignOut}
           onOpenPromoModal={() => setIsRedeemModalOpen(true)}
+          authView={authView}
+          onToggleAuthView={() => setAuthView((prev) => (prev === 'login' ? 'presentation' : 'login'))}
         />
 
         {!currentUser ? (
-          /* =========================================================================
-              PÁGINA INICIAL / APRESENTAÇÃO COMPLETA DA PLATAFORMA & LOGIN EXCLUSIVO
-             ========================================================================= */
-          <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-4 pb-16 animate-fadeIn">
-            <AuthLandingView
-              onLoginSuccess={() => {
-                fetchBotsAndStats();
-              }}
-            />
-          </main>
+          authView === 'presentation' ? (
+            /* =========================================================================
+                PÁGINA INICIAL / APRESENTAÇÃO COMPLETA DA PLATAFORMA (SEM LOGIN POLUÍDO)
+               ========================================================================= */
+            <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-4 pb-16 animate-fadeIn">
+              <PresentationLanding onGoToLogin={() => setAuthView('login')} />
+            </main>
+          ) : (
+            /* =========================================================================
+                PÁGINA DEDICADA E LIMPA DE LOGIN (DISCORD & E-MAIL)
+               ========================================================================= */
+            <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-4 pb-16 animate-fadeIn">
+              <LoginView
+                onBackToPresentation={() => setAuthView('presentation')}
+                onLoginSuccess={fetchBotsAndStats}
+              />
+            </main>
+          )
         ) : (
           /* =========================================================================
               PAINEL OPERACIONAL LIQUID GLASS (VISÍVEL APENAS QUANDO AUTENTICADO)

@@ -13,6 +13,8 @@ interface NavbarProps {
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
+  authView?: 'presentation' | 'login';
+  onToggleAuthView?: () => void;
 }
 
 export const MASTER_ADMIN_DISCORD_ID = '1313535117792378891';
@@ -41,6 +43,8 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onSignOut,
   onOpenPromoModal,
+  authView = 'presentation',
+  onToggleAuthView,
 }) => {
   const isAdmin = isUserMasterAdmin(currentUser);
 
@@ -175,13 +179,22 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </>
         ) : (
-          /* QUANDO NÃO HÁ USUÁRIO LOGADO (NA TELA DE LOGIN / APRESENTAÇÃO) */
-          /* NENHUM BOTÃO DE NAVEGAÇÃO OU INSTÂNCIA É EXIBIDO */
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">
+          /* QUANDO NÃO HÁ USUÁRIO LOGADO (NA TELA DE APRESENTAÇÃO OU LOGIN) */
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-xs">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></span>
               <span>Alta Disponibilidade 24/7</span>
             </div>
+
+            {onToggleAuthView && (
+              <button
+                type="button"
+                onClick={onToggleAuthView}
+                className="apple-pill-btn flex items-center gap-2 rounded-full px-4 sm:px-5 py-2 text-xs font-semibold text-white bg-white/10 hover:bg-white/20 border border-white/20 transition-all shadow-sm"
+              >
+                <span>{authView === 'login' ? 'Ver Apresentação' : 'Entrar no Painel'}</span>
+              </button>
+            )}
           </div>
         )}
       </nav>

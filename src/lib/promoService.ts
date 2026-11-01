@@ -246,3 +246,4 @@ export function addBonusRamToUser(userKey: string, ramMb: number): void {
   bonus.extra_ram_mb += ramMb;
   saveUserBonusData(userKey, bonus);
 }
+

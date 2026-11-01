@@ -112,6 +112,8 @@ create policy "Usuários podem apagar seus próprios bots"
   using (auth.uid()::text = user_id or user_id is null or user_id = 'default-user');
 
 -- 4. Função RPC para registrar bots compatível com auth.uid()
+drop function if exists public.register_or_update_bot cascade;
+
 create or replace function public.register_or_update_bot(
   p_user_id text default 'default-user',
   p_bot_name text default 'Meu Bot',

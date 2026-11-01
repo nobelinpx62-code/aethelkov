@@ -33,20 +33,23 @@ export async function POST(req: NextRequest) {
         await supabase.from('aethel_logs').insert({
           bot_id: botId,
           log_level: 'DISPATCH',
-          message: `[Dispatch] Mensagem de @${author}: "${content.slice(0, 40)}${content.length > 40 ? '...' : ''}"`,
+          message: `[Dispatch] Mensagem de @${author}: "${content || '(conteúdo vazio/apenas menção)'}"`,
         });
       }
 
       let replyText: string | null = null;
       const lower = content.toLowerCase();
+      const isMentioned = Array.isArray(data.mentions) && data.mentions.some((m: any) => m.id === data.application_id || content.includes(`<@`));
 
       // Handlers sob demanda super rápidos (< 50ms)
-      if (lower.startsWith('!ping') || lower.startsWith('/ping')) {
-        replyText = '🏓 **Pong!** Executado sob demanda via **Aethelkov Serverless Runner** (Zero CPU residual).';
-      } else if (lower.includes('aethelkov') || lower.includes('oi tudo bem')) {
-        replyText = `⚡ Olá **${author}**! Este bot está hospedado 24/7 na malha distribuída **Aethelkov** a custo R$ 0,00.`;
+      if (lower.startsWith('!ping') || lower.startsWith('/ping') || lower === 'ping') {
+        replyText = '🏓 **Pong!** Executado sob demanda via **Aethelkov Serverless Runner** (Zero CPU residual)!';
+      } else if (lower.includes('aethelkov') || lower.includes('oi tudo bem') || lower.startsWith('!ajuda') || lower.startsWith('!help')) {
+        replyText = `⚡ Olá **${author}**! Este bot está hospedado 24/7 na malha distribuída **Aethelkov** a custo R$ 0,00.\nUse \`!ping\`, \`!info\` ou mencione o bot!`;
       } else if (lower.startsWith('!status') || lower.startsWith('!info')) {
-        replyText = '🟢 **Status da Instância:** Online 24/7\n🛰️ **Nó Gateway:** Aethel-Farol (Discloud Node)\n⚙️ **Runner:** Vercel Serverless (<50ms execution)';
+        replyText = '🟢 **Status da Instância:** Online 24/7\n🛰️ **Nó Gateway:** Aethel-Farol (Discloud Node)\n⚙️ **Runner:** Vercel Serverless (<50ms execution)\n💰 **Custo:** R$ 0,00';
+      } else if (isMentioned) {
+        replyText = `👋 Olá **${author}**! Eu sou um bot ativo na malha **Aethelkov**. Digite \`!ping\` para testar!`;
       }
 
       // Se houver resposta a enviar, dispara via Discord REST API
@@ -66,6 +69,21 @@ export async function POST(req: NextRequest) {
         if (!discordRes.ok) {
           const errText = await discordRes.text();
           console.error('[Dispatch] Discord REST error:', errText);
+          if (botId) {
+            await supabase.from('aethel_logs').insert({
+              bot_id: botId,
+              log_level: 'ERROR',
+              message: `[Discord REST Error ${discordRes.status}] ${errText.slice(0, 150)}`,
+            });
+          }
+        } else {
+          if (botId) {
+            await supabase.from('aethel_logs').insert({
+              bot_id: botId,
+              log_level: 'INFO',
+              message: `[Dispatch] Resposta enviada com sucesso no canal #${channelId}!`,
+            });
+          }
         }
       }
     }

@@ -24,6 +24,8 @@ yarn-error.log*
 
 # Discloud generated packages (don't commit zip to git)
 /discloud.zip
+/meu_bot.zip
+/sample-bot/
 
 # OS Files
 .DS_Store

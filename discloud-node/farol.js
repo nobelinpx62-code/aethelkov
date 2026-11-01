@@ -129,7 +129,8 @@ function spawnPresenceSocket(botId, token, botName = 'Bot') {
           op: 2,
           d: {
             token: token.trim(),
-            intents: 513, // GUILDS (1) + GUILD_MESSAGES (512)
+            // Intents: GUILDS (1) + GUILD_MESSAGES (512) + DIRECT_MESSAGES (4096) + MESSAGE_CONTENT (32768) = 37377
+            intents: 37377,
             properties: {
               os: 'linux',
               browser: 'aethelkov',

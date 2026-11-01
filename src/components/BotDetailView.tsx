@@ -157,7 +157,8 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       </div>
 
       {/* HEADER PRINCIPAL (Estilo Discloud Pro) */}
-      <div className="liquid-glass rounded-2xl p-6 relative overflow-hidden border border-white/10">
+      <div className="apple-glass-card rounded-[28px] p-6 relative overflow-hidden border border-white/12">
+        <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
           {/* Avatar e Títulos */}
           <div className="flex items-center gap-4">
@@ -186,21 +187,21 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
                 </span>
 
                 {/* Uptime Tag */}
-                <span className="text-xs text-slate-400">
+                <span className="text-xs text-neutral-400 font-mono">
                   {getUptimeText()}
                 </span>
               </div>
 
               {/* Sub-Badges */}
-              <div className="flex items-center gap-3 text-xs text-slate-400 mt-1.5 font-mono">
-                <span className="flex items-center gap-1 text-slate-300">
+              <div className="flex items-center gap-3 text-xs text-neutral-400 mt-1.5 font-mono">
+                <span className="flex items-center gap-1 text-neutral-300">
                   <Shield className="w-3.5 h-3.5 text-emerald-400" />
                   <span>AETHEL-GRID</span>
                 </span>
                 <span>•</span>
-                <span className="text-slate-400">&lt;&gt; {bot.main_file}</span>
+                <span className="text-neutral-400">&lt;&gt; {bot.main_file}</span>
                 <span>•</span>
-                <span className="text-slate-500">{bot.id.slice(0, 13)}</span>
+                <span className="text-neutral-500">{bot.id.slice(0, 13)}</span>
               </div>
             </div>
           </div>
@@ -209,10 +210,10 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={() => onToggleStatus(bot.id, bot.status)}
-              className={`capsule-btn text-xs font-semibold ${
+              className={`apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold flex items-center gap-2 ${
                 isOnline
                   ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30'
-                  : 'capsule-btn-primary'
+                  : 'text-white'
               }`}
             >
               {isOnline ? <Square className="w-3.5 h-3.5" /> : <Play className="w-3.5 h-3.5" />}
@@ -222,7 +223,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
             <button
               onClick={handleRestart}
               disabled={actionLoading === 'restart'}
-              className="capsule-btn capsule-btn-secondary text-xs"
+              className="apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold text-neutral-200 flex items-center gap-2"
             >
               <RefreshCw className={`w-3.5 h-3.5 ${actionLoading === 'restart' ? 'animate-spin' : ''}`} />
               <span>Reiniciar</span>
@@ -230,7 +231,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
 
             <button
               onClick={handleBackup}
-              className="capsule-btn capsule-btn-secondary text-xs"
+              className="apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold text-neutral-200 flex items-center gap-2"
               title="Baixar arquivo de configuração"
             >
               <Download className="w-3.5 h-3.5" />
@@ -239,7 +240,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
 
             <button
               onClick={handleRestart}
-              className="capsule-btn capsule-btn-secondary text-xs"
+              className="apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold text-neutral-200 flex items-center gap-2"
               title="Reconstruir e reconectar"
             >
               <RotateCcw className="w-3.5 h-3.5" />
@@ -252,8 +253,9 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       {/* OS 3 CARDS DE TELEMETRIA (Exatamente como na Discloud) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {/* Card 1: MEMÓRIA */}
-        <div className="liquid-glass rounded-2xl p-5 border border-white/10 relative overflow-hidden">
-          <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="apple-glass-card rounded-[24px] p-5 border border-white/12 relative overflow-hidden">
+          <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+          <div className="flex items-center gap-2.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
             <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-cyan-400">
               <HardDrive className="w-4 h-4" />
             </div>
@@ -261,7 +263,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
           </div>
 
           <div className="text-2xl font-bold font-mono text-white mt-1">
-            {currentRam} MB <span className="text-sm font-normal text-slate-400">/ {ramLimit} MB</span>
+            {currentRam} MB <span className="text-sm font-normal text-neutral-500">/ {ramLimit} MB</span>
           </div>
 
           {/* Barra de Progresso Branca/Esmeralda */}
@@ -271,14 +273,15 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
               style={{ width: `${ramPercent}%` }}
             ></div>
           </div>
-          <div className="text-[11px] text-slate-500 mt-2 font-mono">
+          <div className="text-[11px] text-neutral-500 mt-2 font-mono">
             {ramPercent}% alocado no Farol da Discloud
           </div>
         </div>
 
         {/* Card 2: VCPU */}
-        <div className="liquid-glass rounded-2xl p-5 border border-white/10 relative overflow-hidden">
-          <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="apple-glass-card rounded-[24px] p-5 border border-white/12 relative overflow-hidden">
+          <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+          <div className="flex items-center gap-2.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
             <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-emerald-400">
               <Cpu className="w-4 h-4" />
             </div>
@@ -288,14 +291,15 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
           <div className="text-2xl font-bold font-mono text-white mt-1">
             0.25
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-neutral-400 mt-2 font-mono">
             AMD Epyc • Vercel MicroVM Runner
           </div>
         </div>
 
         {/* Card 3: ÚLTIMOS 7 DIAS / TELEMETRIA */}
-        <div className="liquid-glass rounded-2xl p-5 border border-white/10 relative overflow-hidden">
-          <div className="flex items-center gap-2.5 text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">
+        <div className="apple-glass-card rounded-[24px] p-5 border border-white/12 relative overflow-hidden">
+          <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+          <div className="flex items-center gap-2.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
             <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-purple-400">
               <Activity className="w-4 h-4" />
             </div>
@@ -305,7 +309,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
           <div className="text-2xl font-bold font-mono text-white mt-1">
             {dispatchesCount || 2}
           </div>
-          <div className="text-xs text-slate-400 mt-2">
+          <div className="text-xs text-neutral-400 mt-2 font-mono">
             {logs.length} deploys / eventos • {errorsCount} falhas
           </div>
         </div>
@@ -314,7 +318,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       {/* LINHA DUPLA: ATIVIDADE RECENTE + DETALHES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {/* Atividade Recente */}
-        <div className="liquid-glass rounded-2xl p-5 border border-white/10">
+        <div className="apple-glass-card rounded-[24px] p-5 border border-white/12">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2 text-sm font-semibold text-white">
               <Activity className="w-4 h-4 text-emerald-400" />
@@ -325,13 +329,13 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
                 const el = document.getElementById('terminal-section');
                 el?.scrollIntoView({ behavior: 'smooth' });
               }}
-              className="text-xs text-slate-400 hover:text-emerald-400 transition-colors"
+              className="text-xs text-neutral-400 hover:text-emerald-400 transition-colors font-mono"
             >
               Ver tudo →
             </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 font-mono">
             {logs.slice(0, 4).map((log, idx) => (
               <div key={log.id || idx} className="flex items-center justify-between text-xs py-1.5 border-b border-white/5 last:border-0">
                 <div className="flex items-center gap-2.5">
@@ -340,18 +344,18 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
                     log.log_level === 'GATEWAY' ? 'bg-emerald-400' :
                     log.log_level === 'ERROR' ? 'bg-rose-500' : 'bg-slate-400'
                   }`}></span>
-                  <span className="text-slate-200 font-medium truncate max-w-[280px]">
+                  <span className="text-neutral-200 font-medium truncate max-w-[280px]">
                     {log.message.replace(/\[.*?\]\s*/g, '')}
                   </span>
                 </div>
-                <span className="text-slate-500 font-mono text-[11px] shrink-0">
+                <span className="text-neutral-500 font-mono text-[11px] shrink-0">
                   {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               </div>
             ))}
 
             {logs.length === 0 && (
-              <div className="text-slate-500 text-xs py-4 text-center">
+              <div className="text-neutral-500 text-xs py-4 text-center">
                 Nenhum evento registrado ainda.
               </div>
             )}
@@ -359,20 +363,20 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
         </div>
 
         {/* Detalhes Técnicos */}
-        <div className="liquid-glass rounded-2xl p-5 border border-white/10">
+        <div className="apple-glass-card rounded-[24px] p-5 border border-white/12">
           <div className="flex items-center gap-2 text-sm font-semibold text-white mb-4">
             <Layers className="w-4 h-4 text-cyan-400" />
             <span>Detalhes</span>
           </div>
 
-          <div className="space-y-3 text-xs">
+          <div className="space-y-3 font-mono text-xs">
             <div className="flex items-center justify-between py-1.5 border-b border-white/5">
-              <span className="text-slate-400">ID</span>
-              <div className="flex items-center gap-2 font-mono text-slate-200">
+              <span className="text-neutral-400">ID</span>
+              <div className="flex items-center gap-2 text-neutral-200">
                 <span>{bot.id}</span>
                 <button
                   onClick={() => copyToClipboard(bot.id)}
-                  className="p-1 hover:bg-white/10 rounded text-slate-400 hover:text-white"
+                  className="p-1 hover:bg-white/10 rounded text-neutral-400 hover:text-white"
                   title="Copiar ID"
                 >
                   {copiedId ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
@@ -381,12 +385,12 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-white/5">
-              <span className="text-slate-400">Tipo</span>
-              <span className="font-mono text-slate-200">Bot • javascript (Node.js)</span>
+              <span className="text-neutral-400">Tipo</span>
+              <span className="text-neutral-200">Bot • javascript (Node.js)</span>
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-white/5">
-              <span className="text-slate-400">Proprietário</span>
+              <span className="text-neutral-400">Proprietário</span>
               <span className="font-semibold text-emerald-400 flex items-center gap-1">
                 <span>NobeliNpx</span>
                 <Sparkles className="w-3 h-3 text-emerald-400" />
@@ -394,8 +398,8 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
             </div>
 
             <div className="flex items-center justify-between py-1.5 border-b border-white/5">
-              <span className="text-slate-400">Criado em</span>
-              <span className="text-slate-300">
+              <span className="text-neutral-400">Criado em</span>
+              <span className="text-neutral-300">
                 {new Date(bot.created_at).toLocaleDateString('pt-BR', {
                   day: '2-digit',
                   month: 'short',
@@ -407,15 +411,15 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
             </div>
 
             <div className="flex items-center justify-between py-1.5">
-              <span className="text-slate-400">Último restart</span>
-              <span className="text-slate-300">há alguns segundos</span>
+              <span className="text-neutral-400">Último restart</span>
+              <span className="text-neutral-300">há poucos segundos</span>
             </div>
           </div>
         </div>
       </div>
 
       {/* CONSOLE DE LOGS EM TEMPO REAL */}
-      <div id="terminal-section" className="liquid-glass rounded-2xl overflow-hidden border border-white/10">
+      <div id="terminal-section" className="apple-glass-card rounded-[28px] overflow-hidden border border-white/12">
         <div className="px-4 py-3 bg-black/60 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-1.5">
@@ -436,22 +440,39 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
               placeholder="Buscar logs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="px-2.5 py-1 rounded bg-black/40 border border-white/10 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500"
+              className="px-3 py-1 rounded-full bg-black/40 border border-white/10 text-white text-xs placeholder-neutral-500 focus:outline-none focus:border-cyan-400"
             />
 
             {(['ALL', 'DISPATCH', 'GATEWAY', 'ERROR'] as const).map((filter) => (
               <button
                 key={filter}
                 onClick={() => setActiveLogFilter(filter)}
-                className={`px-2 py-0.5 rounded text-[11px] font-mono transition-colors ${
+                className={`px-2.5 py-1 rounded-full text-[11px] font-mono transition-colors ${
                   activeLogFilter === filter
-                    ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                    : 'text-slate-400 hover:text-white'
+                    ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30'
+                    : 'text-neutral-400 hover:text-white'
                 }`}
               >
                 {filter}
               </button>
             ))}
+
+            <button
+              onClick={() => {
+                const logText = filteredLogs.map(l => `[${l.created_at}] [${l.log_level}] ${l.message}`).join('\n');
+                const blob = new Blob([logText], { type: 'text/plain' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${bot.bot_name}-logs.log`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
+              className="apple-pill-btn rounded-full px-3 py-1 text-[11px] font-mono text-neutral-300 flex items-center gap-1.5"
+            >
+              <Download className="w-3.5 h-3.5 text-cyan-400" />
+              <span>Exportar (.log)</span>
+            </button>
           </div>
         </div>
 

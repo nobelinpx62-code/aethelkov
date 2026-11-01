@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { AethelBot } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { NodeDetailModal } from '@/components/NodeDetailModal';
 
 interface DiscloudAccount {
   id: string;
@@ -77,6 +78,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Nós descobertos dinamicamente via Heartbeats no Supabase
   const [discoveredNodes, setDiscoveredNodes] = useState<Record<string, DiscoveredNode>>({});
   const [isRefreshingNodes, setIsRefreshingNodes] = useState(false);
+  const [selectedNode, setSelectedNode] = useState<DiscoveredNode | null>(null);
+  const [adminToast, setAdminToast] = useState<string | null>(null);
 
   // Gerador Manual de Nós
   const [genNodeName, setGenNodeName] = useState('farol-bravo');
@@ -85,10 +88,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
+  // Busca os nós deletados pelo usuário para não reaparecerem no polling
+  const getDeletedNodesList = (): string[] => {
+    try {
+      return JSON.parse(localStorage.getItem('aethel_deleted_nodes') || '[]');
+    } catch {
+      return [];
+    }
+  };
+
   // Busca os heartbeats dos nós em execução
   const fetchNodeHeartbeats = async () => {
     setIsRefreshingNodes(true);
     try {
+      const deletedList = getDeletedNodesList();
       const { data } = await supabase
         .from('aethel_logs')
         .select('message, created_at')
@@ -103,7 +116,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           try {
             const jsonStr = row.message.replace('[NODE_HEARTBEAT]', '').trim();
             const parsed = JSON.parse(jsonStr);
-            if (parsed.nodeId && !nodesMap[parsed.nodeId]) {
+            if (parsed.nodeId && !deletedList.includes(parsed.nodeId) && !nodesMap[parsed.nodeId]) {
               const hbDate = new Date(row.created_at);
               // Tolerância de 3 minutos para fuso horário e sincronização
               const isFresh = Math.abs(Date.now() - hbDate.getTime()) < 180000;
@@ -123,8 +136,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         }
       }
 
-      // Garante que farol-alpha sempre conste na lista
-      if (!nodesMap['farol-alpha']) {
+      // Garante que farol-alpha conste apenas se o usuário não o tiver apagado
+      if (!deletedList.includes('farol-alpha') && !nodesMap['farol-alpha']) {
         nodesMap['farol-alpha'] = {
           nodeId: 'farol-alpha',
           status: 'ONLINE',
@@ -143,6 +156,50 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       console.error('Erro ao buscar nós:', err);
     } finally {
       setIsRefreshingNodes(false);
+    }
+  };
+
+  const handleDeleteNode = async (nodeId: string) => {
+    if (!confirm(`Tem certeza que deseja apagar o nó "${nodeId}" da malha? Os registros de telemetria e presença serão removidos.`)) {
+      return;
+    }
+
+    try {
+      // 1. Grava no localStorage para não reaparecer no polling
+      try {
+        const deleted = getDeletedNodesList();
+        if (!deleted.includes(nodeId)) {
+          deleted.push(nodeId);
+          localStorage.setItem('aethel_deleted_nodes', JSON.stringify(deleted));
+        }
+      } catch (_) {}
+
+      // 2. Apaga registros do nó no Supabase
+      await supabase
+        .from('aethel_logs')
+        .delete()
+        .like('message', `%"nodeId":"${nodeId}"%`);
+
+      await supabase
+        .from('aethel_logs')
+        .delete()
+        .like('message', `[${nodeId}]%`);
+
+      // 3. Remove do estado
+      setDiscoveredNodes((prev) => {
+        const next = { ...prev };
+        delete next[nodeId];
+        return next;
+      });
+
+      if (selectedNode?.nodeId === nodeId) {
+        setSelectedNode(null);
+      }
+
+      setAdminToast(`🗑️ Nó "${nodeId}" removido da malha com sucesso!`);
+      setTimeout(() => setAdminToast(null), 4000);
+    } catch (err: any) {
+      alert('Erro ao apagar nó: ' + err.message);
     }
   };
 
@@ -258,6 +315,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const handleGenerateNodeZip = async () => {
     setIsGeneratingZip(true);
     setDownloadSuccess(null);
+
+    // Se o nó foi apagado anteriormente, desbloqueia para nova geração
+    try {
+      const deleted = getDeletedNodesList();
+      const filtered = deleted.filter((id) => id !== genNodeName.trim());
+      localStorage.setItem('aethel_deleted_nodes', JSON.stringify(filtered));
+    } catch (_) {}
 
     try {
       const zip = new JSZip();
@@ -557,39 +621,56 @@ setInterval(reportNodeHeartbeat, 15000);
               return (
                 <div 
                   key={node.nodeId} 
-                  className={`apple-glass-card rounded-[28px] p-5 border relative transition-all duration-300 ${
+                  onClick={() => setSelectedNode(node)}
+                  className={`apple-glass-card rounded-[28px] p-5 border relative transition-all duration-300 cursor-pointer hover:border-cyan-400/50 hover:shadow-cyan-500/10 hover:shadow-xl group ${
                     isOnline ? 'border-emerald-500/30' : 'border-white/10'
                   }`}
+                  title="Clique para abrir a telemetria detalhada deste nó"
                 >
                   <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
                   
                   <div className="flex items-start justify-between mb-3">
                     <div>
                       <div className="flex items-center gap-2">
-                        <h4 className="text-base font-bold text-white font-mono">{node.nodeId}</h4>
+                        <h4 className="text-base font-bold text-white font-mono group-hover:text-cyan-300 transition-colors">
+                          {node.nodeId}
+                        </h4>
                         {isAlpha && (
                           <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
                             Mestre
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-neutral-400 mt-0.5">Discloud Node</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">Discloud Node &bull; Telemetria</p>
                     </div>
 
-                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-[11px] border ${
-                      isOnline 
-                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
-                        : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
-                    }`}>
-                      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-                      <span>{node.status}</span>
+                    <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-[11px] border ${
+                        isOnline 
+                          ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
+                          : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                      }`}>
+                        <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                        <span>{node.status}</span>
+                      </div>
+
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleDeleteNode(node.nodeId);
+                        }}
+                        className="p-1.5 rounded-full hover:bg-rose-500/20 text-neutral-400 hover:text-rose-400 transition-colors"
+                        title="Apagar este nó da malha"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-2.5 rounded-2xl border border-white/5 my-3">
                     <div>
                       <span className="text-[9px] text-neutral-500 block">MEMÓRIA REAL</span>
-                      <span className="text-white font-bold">{node.ramUsedMb} MB</span> <span className="text-neutral-500 text-[10px]">/ {node.ramTotalMb}MB</span>
+                      <span className="text-white font-bold">{node.ramUsedMb.toFixed(2)} MB</span> <span className="text-neutral-500 text-[10px]">/ {node.ramTotalMb}MB</span>
                     </div>
                     <div>
                       <span className="text-[9px] text-neutral-500 block">SHARD RANGE</span>
@@ -605,11 +686,11 @@ setInterval(reportNodeHeartbeat, 15000);
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-neutral-400 flex items-center justify-between pt-1">
-                    <span>Heartbeat: <strong className="text-neutral-300 font-mono">{new Date(node.lastHeartbeat).toLocaleTimeString()}</strong></span>
-                    <span className="text-emerald-400 flex items-center gap-1 font-mono text-[10px]">
-                      <Activity className="w-3 h-3" />
-                      <span>Ativo</span>
+                  <div className="text-[11px] text-neutral-400 flex items-center justify-between pt-1 font-mono">
+                    <span>Heartbeat: <strong className="text-neutral-300">{new Date(node.lastHeartbeat).toLocaleTimeString()}</strong></span>
+                    <span className="text-cyan-400 flex items-center gap-1 text-[11px] group-hover:underline">
+                      <span>Ver Detalhes</span>
+                      <span>&rarr;</span>
                     </span>
                   </div>
                 </div>
@@ -906,6 +987,23 @@ setInterval(reportNodeHeartbeat, 15000);
             </div>
           </div>
         </section>
+      )}
+
+      {/* Toast Notificação Admin */}
+      {adminToast && (
+        <div className="fixed bottom-6 right-6 z-50 p-4 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-mono shadow-2xl flex items-center gap-2 animate-fadeIn backdrop-blur-xl">
+          <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+          <span>{adminToast}</span>
+        </div>
+      )}
+
+      {/* Modal de Telemetria do Nó Selecionado */}
+      {selectedNode && (
+        <NodeDetailModal
+          node={selectedNode}
+          onClose={() => setSelectedNode(null)}
+          onDeleteNode={handleDeleteNode}
+        />
       )}
     </div>
   );

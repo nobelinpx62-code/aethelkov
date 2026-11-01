@@ -5,13 +5,12 @@ import { Navbar } from '@/components/Navbar';
 import { MetricsBanner } from '@/components/MetricsBanner';
 import { StorageHUD } from '@/components/StorageHUD';
 import { BotGrid } from '@/components/BotGrid';
-import { LiveTerminal } from '@/components/LiveTerminal';
 import { DeployModal } from '@/components/DeployModal';
 import { BotDetailView } from '@/components/BotDetailView';
 import { AdminAuthModal } from '@/components/AdminAuthModal';
 import { AdminPanel } from '@/components/AdminPanel';
 import { AethelBot, ClusterStats } from '@/lib/types';
-import { ShieldCheck, CheckCircle2, Plus, UploadCloud } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, Plus } from 'lucide-react';
 
 export default function DashboardPage() {
   const [bots, setBots] = useState<AethelBot[]>([]);
@@ -211,57 +210,29 @@ export default function DashboardPage() {
               </section>
 
               {/* Cartões de Telemetria e Alocação */}
-              {activeNavTab !== 'instances' && (
-                <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                  <div className="md:col-span-2">
-                    <StorageHUD usedBytes={totalStorageBytes} />
-                  </div>
-                  <div className="md:col-span-2">
-                    <MetricsBanner stats={stats} />
-                  </div>
+              {activeNavTab === 'overview' && (
+                <section className="w-full">
+                  <MetricsBanner stats={stats} />
                 </section>
               )}
 
-              {/* Grade Principal de 2 Colunas: Lista de Bots & Terminal Flutuante */}
-              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
-                {/* Coluna Esquerda: Cartões de Bots Gerenciados (lg:col-span-8) */}
-                <div className="lg:col-span-8">
-                  <BotGrid
-                    bots={bots}
-                    selectedBotId={selectedBotId}
-                    onSelectBot={(id) => setSelectedBotId(id)}
-                    onOpenDetails={(id) => setFocusedBotId(id)}
-                    onToggleStatus={handleToggleStatus}
-                    onDeleteBot={handleDeleteBot}
-                    onSetupTelegram={handleSetupTelegram}
-                  />
-                </div>
+              {activeNavTab === 'storage' && (
+                <section className="w-full">
+                  <StorageHUD usedBytes={totalStorageBytes} />
+                </section>
+              )}
 
-                {/* Coluna Direita: Live Console & Ações do Vault (lg:col-span-4) */}
-                <div className="lg:col-span-4 space-y-6">
-                  {/* Terminal Óptico Flutuante */}
-                  <LiveTerminal selectedBot={selectedBot} />
-
-                  {/* Card de Upload Rápido Lateral */}
-                  <div className="apple-glass-card relative overflow-hidden rounded-[32px] p-6 text-center border border-white/12">
-                    <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
-
-                    <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-white/10 border border-white/20 mb-3 shadow-inner">
-                      <UploadCloud className="h-5 w-5 text-white" />
-                    </div>
-                    <h4 className="text-sm font-semibold text-white">Atualizar Código</h4>
-                    <p className="text-xs text-neutral-400 mt-1 mb-4">
-                      Envie um novo arquivo zip para recarregar ou adicionar instâncias.
-                    </p>
-                    
-                    <button
-                      onClick={() => setIsDeployOpen(true)}
-                      className="apple-pill-btn w-full rounded-full py-2.5 text-xs font-semibold tracking-wide text-white uppercase"
-                    >
-                      Upload Rápido
-                    </button>
-                  </div>
-                </div>
+              {/* Lista Principal de Instâncias (Largura Total Ampla) */}
+              <div className="w-full">
+                <BotGrid
+                  bots={bots}
+                  selectedBotId={selectedBotId}
+                  onSelectBot={(id) => setSelectedBotId(id)}
+                  onOpenDetails={(id) => setFocusedBotId(id)}
+                  onToggleStatus={handleToggleStatus}
+                  onDeleteBot={handleDeleteBot}
+                  onSetupTelegram={handleSetupTelegram}
+                />
               </div>
             </div>
           )}

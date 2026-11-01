@@ -13,6 +13,7 @@ interface NavbarProps {
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
+  onOpenProfileModal?: () => void;
   authView?: 'presentation' | 'login';
   onToggleAuthView?: () => void;
 }
@@ -43,6 +44,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   currentUser,
   onSignOut,
   onOpenPromoModal,
+  onOpenProfileModal,
   authView = 'presentation',
   onToggleAuthView,
 }) => {
@@ -144,27 +146,46 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="hidden sm:inline">Nova Instância</span>
               </button>
 
-              {/* Perfil do Usuário Autenticado */}
+              {/* Perfil Interativo do Usuário Autenticado (Discord Avatar & Nome) */}
               <div className="flex items-center gap-2 pl-1 border-l border-white/10 ml-1">
-                <div 
-                  className="flex items-center gap-2 py-1 px-2.5 rounded-full bg-white/5 border border-white/10"
-                  title={currentUser.email || 'Usuário Autenticado'}
+                <button
+                  type="button"
+                  onClick={onOpenProfileModal}
+                  className="group relative flex items-center gap-2.5 py-1 px-1.5 sm:pr-3 rounded-full bg-white/5 hover:bg-white/10 border border-white/15 hover:border-cyan-400/50 transition-all duration-300 shadow-sm hover:shadow-[0_0_16px_rgba(34,211,238,0.25)] active:scale-95"
+                  title="Clique para analisar seu perfil, Discord ID e cota de RAM"
                 >
-                  {currentUser.user_metadata?.avatar_url ? (
-                    <img
-                      src={currentUser.user_metadata.avatar_url}
-                      alt="Avatar"
-                      className="w-5 h-5 rounded-full object-cover border border-emerald-400/50"
-                    />
-                  ) : (
-                    <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
-                      <User className="w-3 h-3" />
+                  {/* Bolinha de Perfil com Foto do Discord e Indicador Online */}
+                  <div className="relative flex-shrink-0">
+                    <div className="h-8 w-8 rounded-full overflow-hidden border border-white/30 group-hover:border-cyan-400/70 transition-colors shadow-inner">
+                      {currentUser.user_metadata?.avatar_url || currentUser.identities?.[0]?.identity_data?.avatar_url ? (
+                        <img
+                          src={currentUser.user_metadata?.avatar_url || currentUser.identities?.[0]?.identity_data?.avatar_url}
+                          alt="Avatar"
+                          className="h-full w-full object-cover group-hover:scale-105 transition-transform duration-300"
+                        />
+                      ) : (
+                        <div className="h-full w-full bg-gradient-to-tr from-[#5865F2] to-indigo-600 flex items-center justify-center text-white font-mono text-xs font-bold">
+                          {(currentUser.user_metadata?.full_name || currentUser.email || 'A').charAt(0).toUpperCase()}
+                        </div>
+                      )}
                     </div>
-                  )}
-                  <span className="hidden lg:inline font-mono text-[11px] text-neutral-300 max-w-[100px] truncate">
-                    {currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.email?.split('@')[0] || 'Usuário'}
-                  </span>
-                </div>
+                    {/* Indicador de Status Online */}
+                    <span className="absolute -bottom-0.5 -right-0.5 flex h-2.5 w-2.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500 border border-[#0d0e14]"></span>
+                    </span>
+                  </div>
+
+                  {/* Nome do Usuário no Discord / E-mail */}
+                  <div className="hidden md:flex flex-col text-left leading-tight">
+                    <span className="font-sans text-xs font-medium text-white group-hover:text-cyan-200 transition-colors max-w-[110px] truncate">
+                      {currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.user_metadata?.custom_claims?.global_name || currentUser.email?.split('@')[0] || 'Usuário'}
+                    </span>
+                    <span className="font-mono text-[9px] text-neutral-400 group-hover:text-cyan-300 transition-colors">
+                      {isAdmin ? '👑 Master Admin' : 'Analisar Perfil'}
+                    </span>
+                  </div>
+                </button>
 
                 {onSignOut && (
                   <button

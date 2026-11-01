@@ -11,6 +11,7 @@ import { AdminPanel } from '@/components/AdminPanel';
 import { PresentationLanding } from '@/components/PresentationLanding';
 import { LoginView } from '@/components/LoginView';
 import { GiftCelebrationModal } from '@/components/GiftCelebrationModal';
+import { UserProfileModal } from '@/components/UserProfileModal';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -53,6 +54,7 @@ export default function DashboardPage() {
   const [extraRamMb, setExtraRamMb] = useState<number>(0);
   const [pendingGift, setPendingGift] = useState<UserGift | null>(null);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState<boolean>(false);
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState<boolean>(false);
 
   const getUserKey = (user: any): string => {
     if (!user) return 'guest';
@@ -251,6 +253,7 @@ export default function DashboardPage() {
           currentUser={currentUser}
           onSignOut={handleSignOut}
           onOpenPromoModal={() => setIsRedeemModalOpen(true)}
+          onOpenProfileModal={() => setIsProfileModalOpen(true)}
           authView={authView}
           onToggleAuthView={() => setAuthView((prev) => (prev === 'login' ? 'presentation' : 'login'))}
         />
@@ -353,6 +356,25 @@ export default function DashboardPage() {
             )}
           </main>
         )}
+
+        {/* Modal de Análise de Perfil Apple Liquid Glass */}
+        <UserProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          currentUser={currentUser}
+          stats={stats}
+          extraRamMb={extraRamMb}
+          bots={bots}
+          onSignOut={handleSignOut}
+          onOpenPromoModal={() => {
+            setIsProfileModalOpen(false);
+            setIsRedeemModalOpen(true);
+          }}
+          onOpenAdminPanel={() => {
+            setIsProfileModalOpen(false);
+            setIsAdminPanelOpen(true);
+          }}
+        />
 
         {/* Modal de Presentes Recebidos & Resgate de Cupons */}
         <GiftCelebrationModal

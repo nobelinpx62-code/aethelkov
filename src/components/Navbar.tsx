@@ -1,15 +1,29 @@
 'use client';
 
-import React from 'react';
-import { Zap, Plus, RefreshCw, Shield, LogOut, User, Gift, Bot } from 'lucide-react';
+import React, { useState } from 'react';
+import { 
+  Zap, 
+  Plus, 
+  RefreshCw, 
+  Shield, 
+  LogOut, 
+  User, 
+  Gift, 
+  Bot, 
+  Menu, 
+  X, 
+  Globe, 
+  ArrowRight,
+  ExternalLink
+} from 'lucide-react';
 
 interface NavbarProps {
   onOpenDeploy: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
   onTriggerAdmin: () => void;
-  activeNavTab: 'overview' | 'instances';
-  onSelectNavTab: (tab: 'overview' | 'instances') => void;
+  activeNavTab: 'overview' | 'instances' | 'subdomains';
+  onSelectNavTab: (tab: 'overview' | 'instances' | 'subdomains') => void;
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
@@ -49,6 +63,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   onToggleAuthView,
 }) => {
   const isAdmin = isUserMasterAdmin(currentUser);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
     <header className="sticky top-4 z-50 mx-auto w-[94%] max-w-6xl transition-all duration-300">
@@ -81,7 +96,7 @@ export const Navbar: React.FC<NavbarProps> = ({
         {currentUser ? (
           <>
             {/* Seletor de Navegação em Pílula (Apple Liquid Dock) */}
-            <div className="hidden md:flex items-center gap-1 rounded-full bg-black/40 p-1 border border-white/10 font-mono text-xs">
+            <div className="hidden lg:flex items-center gap-1 rounded-full bg-black/40 p-1 border border-white/10 font-mono text-xs">
               <button
                 onClick={() => onSelectNavTab('overview')}
                 className={`rounded-full px-4 py-1.5 font-medium transition-all ${
@@ -102,19 +117,39 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Instâncias
               </button>
+              <button
+                onClick={() => onSelectNavTab('subdomains')}
+                className={`rounded-full px-4 py-1.5 font-medium transition-all ${
+                  activeNavTab === 'subdomains'
+                    ? 'text-cyan-300 bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                Subdomínios (512 MB)
+              </button>
             </div>
 
             {/* Ações Rápidas, Admin, Presentes & Botão Novo Deploy */}
             <div className="flex items-center gap-2">
+              {/* BOTÃO TRÊS TRACINHOS (MENU DRAWER OPERACIONAL) */}
+              <button
+                type="button"
+                onClick={() => setIsDrawerOpen(true)}
+                className="apple-pill-btn flex h-9 w-9 items-center justify-center rounded-full text-white hover:text-cyan-300 hover:bg-white/10 border border-white/15 transition-all shadow-sm active:scale-95"
+                title="Abrir Menu de Opções e Subdomínios"
+              >
+                <Menu className="h-4 w-4 text-white" />
+              </button>
+
               {/* Botão Resgatar Código / Presentes */}
               {onOpenPromoModal && (
                 <button
                   onClick={onOpenPromoModal}
-                  className="apple-pill-btn flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-mono text-pink-300 bg-pink-500/10 border-pink-500/30 hover:bg-pink-500/20 transition-colors"
+                  className="apple-pill-btn hidden sm:flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-mono text-pink-300 bg-pink-500/10 border-pink-500/30 hover:bg-pink-500/20 transition-colors"
                   title="Resgatar Código Promocional de RAM"
                 >
                   <Gift className="w-3.5 h-3.5 text-pink-400" />
-                  <span className="hidden sm:inline">Resgatar Código</span>
+                  <span>Resgatar Código</span>
                 </button>
               )}
 
@@ -267,6 +302,18 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
+            <button
+              type="button"
+              onClick={() => onSelectNavTab('subdomains')}
+              className={`flex flex-col items-center gap-0.5 py-1 px-2 transition-all ${
+                activeNavTab === 'subdomains' ? 'text-cyan-300 font-bold scale-105' : 'text-neutral-400'
+              }`}
+              title="Subdomínios (512 MB)"
+            >
+              <Globe className="w-4 h-4" />
+              <span className="text-[10px] font-mono">Sites</span>
+            </button>
+
             {isAdmin && (
               <button
                 type="button"
@@ -278,6 +325,185 @@ export const Navbar: React.FC<NavbarProps> = ({
                 <span className="text-[10px] font-mono">Admin</span>
               </button>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* DRAWER LIQUID GLASS (MENU TRÊS TRACINHOS) */}
+      {isDrawerOpen && (
+        <div className="fixed inset-0 z-50 flex justify-end bg-black/75 backdrop-blur-md animate-fadeIn">
+          <div 
+            className="w-full max-w-sm h-full apple-glass-card p-6 border-l border-white/15 flex flex-col justify-between shadow-[0_0_80px_rgba(0,0,0,0.9)] animate-slideLeft"
+          >
+            <div className="space-y-6">
+              {/* Topo do Drawer */}
+              <div className="flex items-center justify-between pb-4 border-b border-white/10">
+                <div className="flex items-center gap-2.5">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-emerald-500/20 border border-white/20">
+                    <Zap className="h-4 w-4 text-emerald-400" />
+                  </div>
+                  <div>
+                    <span className="font-semibold text-white text-sm block">Aethel Control</span>
+                    <span className="font-mono text-[9px] text-neutral-400 uppercase tracking-widest">Painel Operacional</span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsDrawerOpen(false)}
+                  className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 hover:bg-white/15 text-neutral-400 hover:text-white transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              {/* Links de Navegação */}
+              <div className="space-y-1.5 font-mono text-xs">
+                <span className="text-[10px] text-neutral-500 uppercase tracking-wider block px-3 mb-1">Navegação Principal</span>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectNavTab('overview');
+                    setIsDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
+                    activeNavTab === 'overview'
+                      ? 'bg-white/15 text-white font-semibold border border-white/20 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Zap className="w-4 h-4 text-emerald-400" />
+                    <span>Visão Geral</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectNavTab('instances');
+                    setIsDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
+                    activeNavTab === 'instances'
+                      ? 'bg-white/15 text-white font-semibold border border-white/20 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Bot className="w-4 h-4 text-cyan-400" />
+                    <span>Instâncias (Bots & Sites)</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectNavTab('subdomains');
+                    setIsDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
+                    activeNavTab === 'subdomains'
+                      ? 'bg-cyan-500/20 text-cyan-200 font-semibold border border-cyan-400/40 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-4 h-4 text-cyan-400" />
+                    <span>Subdomínios (Sites 512 MB)</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">512 MB</span>
+                </button>
+              </div>
+
+              {/* Ferramentas e Bônus */}
+              <div className="space-y-1.5 font-mono text-xs pt-3 border-t border-white/10">
+                <span className="text-[10px] text-neutral-500 uppercase tracking-wider block px-3 mb-1">Ações & Presentes</span>
+
+                {onOpenPromoModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      onOpenPromoModal();
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl text-pink-300 hover:bg-pink-500/10 transition-colors border border-pink-500/20"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Gift className="w-4 h-4 text-pink-400" />
+                      <span>Resgatar Código Promo</span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-pink-400" />
+                  </button>
+                )}
+
+                {isAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      onTriggerAdmin();
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl text-amber-300 hover:bg-amber-500/15 transition-colors border border-amber-500/30 bg-amber-500/5 shadow-[0_0_12px_rgba(245,158,11,0.2)]"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Shield className="w-4 h-4 text-amber-400" />
+                      <span>Painel Master Admin</span>
+                    </div>
+                    <span className="text-[9px] font-bold uppercase text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-full">Dono</span>
+                  </button>
+                )}
+
+                {onOpenProfileModal && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsDrawerOpen(false);
+                      onOpenProfileModal();
+                    }}
+                    className="w-full flex items-center justify-between p-3 rounded-2xl text-neutral-300 hover:text-white hover:bg-white/5 transition-colors"
+                  >
+                    <div className="flex items-center gap-3">
+                      <User className="w-4 h-4 text-emerald-400" />
+                      <span>Meu Perfil & Telemetria</span>
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Rodapé do Drawer */}
+            <div className="pt-4 border-t border-white/10 space-y-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsDrawerOpen(false);
+                  onOpenDeploy();
+                }}
+                className="w-full apple-pill-btn apple-pill-primary flex items-center justify-center gap-2 py-3 rounded-2xl font-mono text-xs font-semibold text-white shadow-lg"
+              >
+                <Plus className="w-4 h-4" />
+                <span>+ Novo Deploy (Bot ou Site)</span>
+              </button>
+
+              {onSignOut && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsDrawerOpen(false);
+                    onSignOut();
+                  }}
+                  className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors font-mono text-xs"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                  <span>Desconectar da Conta</span>
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}

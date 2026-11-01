@@ -1,17 +1,44 @@
 'use client';
 
-import React, { useState } from 'react';
-import { X, UploadCloud, FileCode, CheckCircle2, AlertCircle, Bot, Send } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { 
+  X, 
+  UploadCloud, 
+  FileCode, 
+  CheckCircle2, 
+  AlertCircle, 
+  Bot, 
+  Send,
+  Globe,
+  HardDrive,
+  ArrowRight,
+  ShieldCheck
+} from 'lucide-react';
 import { BotPlatform } from '@/lib/types';
+import { 
+  getUserSubdomains, 
+  linkSubdomainToInstance, 
+  AethelSubdomain 
+} from '@/lib/subdomainService';
 
 interface DeployModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  userId?: string;
+  onGoToSubdomains?: () => void;
+  initialSubdomain?: string | null;
 }
 
-export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuccess }) => {
-  const [activeTab, setActiveTab] = useState<'zip' | 'manual'>('zip');
+export const DeployModal: React.FC<DeployModalProps> = ({ 
+  isOpen, 
+  onClose, 
+  onSuccess,
+  userId = 'default',
+  onGoToSubdomains,
+  initialSubdomain = null,
+}) => {
+  const [activeTab, setActiveTab] = useState<'zip' | 'manual'>('manual');
   
   // ZIP Upload States
   const [zipFile, setZipFile] = useState<File | null>(null);
@@ -21,13 +48,36 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
 
   // Manual States
   const [name, setName] = useState('');
-  const [platform, setPlatform] = useState<BotPlatform>('DISCORD');
+  const [platform, setPlatform] = useState<BotPlatform>(initialSubdomain ? 'SITE' : 'DISCORD');
   const [token, setToken] = useState('');
-  const [ram, setRam] = useState(100);
-  const [mainFile, setMainFile] = useState('index.js');
-  const [configType, setConfigType] = useState<'aethel' | 'discloud'>('aethel');
+  const [ram, setRam] = useState(initialSubdomain ? 512 : 100);
+  const [mainFile, setMainFile] = useState(initialSubdomain ? 'index.html' : 'index.js');
+  const [configType, setConfigType] = useState<'aethel' | 'discloud' | 'site'>(initialSubdomain ? 'site' : 'aethel');
+
+  // Subdomínios Registrados do Usuário
+  const [userSubdomains, setUserSubdomains] = useState<AethelSubdomain[]>([]);
+  const [selectedSubdomain, setSelectedSubdomain] = useState<string>(initialSubdomain || '');
+
+  useEffect(() => {
+    if (isOpen) {
+      const subs = getUserSubdomains(userId);
+      setUserSubdomains(subs);
+      if (initialSubdomain) {
+        setPlatform('SITE');
+        setRam(512);
+        setMainFile('index.html');
+        setConfigType('site');
+        setSelectedSubdomain(initialSubdomain);
+        setName(initialSubdomain);
+      } else if (subs.length > 0 && !selectedSubdomain) {
+        setSelectedSubdomain(subs[0].subdomain);
+      }
+    }
+  }, [isOpen, userId, initialSubdomain]);
 
   if (!isOpen) return null;
+
+  const isSiteMode = platform === 'SITE';
 
   const handleZipUpload = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,8 +86,14 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
       return;
     }
 
-    if (zipFile.size > 100 * 1024 * 1024) {
-      setUploadError('Arquivo excede a franquia estrita de 100 MB.');
+    if (isSiteMode && !selectedSubdomain) {
+      setUploadError('Você precisa selecionar um subdomínio registrado para o seu site.');
+      return;
+    }
+
+    const maxLimitBytes = isSiteMode ? 512 * 1024 * 1024 : 100 * 1024 * 1024;
+    if (zipFile.size > maxLimitBytes) {
+      setUploadError(`Arquivo excede a franquia estrita de ${isSiteMode ? '512 MB' : '100 MB'}.`);
       return;
     }
 
@@ -61,6 +117,10 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
         throw new Error(data.error || 'Falha no upload');
       }
 
+      if (isSiteMode && selectedSubdomain && data.botId) {
+        linkSubdomainToInstance(selectedSubdomain, data.botId, name.trim() || selectedSubdomain);
+      }
+
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -72,8 +132,18 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
 
   const handleManualCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim() || !token.trim()) {
-      setUploadError('Nome e Token são obrigatórios.');
+    if (!name.trim()) {
+      setUploadError('Nome da instância é obrigatório.');
+      return;
+    }
+
+    if (!isSiteMode && !token.trim()) {
+      setUploadError('Token de autenticação é obrigatório para bots de Discord e Telegram.');
+      return;
+    }
+
+    if (isSiteMode && !selectedSubdomain) {
+      setUploadError('Para publicar um site você precisa registrar um subdomínio antes!');
       return;
     }
 
@@ -87,17 +157,22 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
         body: JSON.stringify({
           bot_name: name.trim(),
           platform,
-          token: token.trim(),
-          ram_limit_mb: Math.min(Number(ram) || 100, 100),
-          main_file: mainFile.trim() || 'index.js',
-          config_type: configType,
-          assigned_node: 'farol-alpha',
+          token: token.trim() || (isSiteMode ? `site-token-${Date.now()}` : ''),
+          ram_limit_mb: isSiteMode ? 512 : Math.min(Number(ram) || 100, 100),
+          main_file: mainFile.trim() || (isSiteMode ? 'index.html' : 'index.js'),
+          config_type: isSiteMode ? 'site' : configType,
+          assigned_node: isSiteMode ? 'aethel-edge-web' : 'farol-alpha',
+          subdomain: isSiteMode ? selectedSubdomain : undefined,
         }),
       });
 
       const data = await res.json();
       if (!res.ok) {
-        throw new Error(data.error || 'Falha ao cadastrar bot.');
+        throw new Error(data.error || 'Falha ao cadastrar instância.');
+      }
+
+      if (isSiteMode && selectedSubdomain && data.bot_id) {
+        linkSubdomainToInstance(selectedSubdomain, data.bot_id, name.trim());
       }
 
       onSuccess();
@@ -110,180 +185,360 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md">
-      <div className="liquid-glass w-full max-w-xl max-h-[92vh] overflow-y-auto custom-scrollbar rounded-3xl border border-white/10 shadow-2xl animate-subtle-float">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
+      <div className="apple-glass-card w-full max-w-xl max-h-[92vh] overflow-y-auto custom-scrollbar rounded-[32px] border border-white/15 shadow-[0_20px_70px_rgba(0,0,0,0.85)] animate-fadeIn">
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-bold text-white">Novo Deploy de Instância</h3>
-            <p className="text-xs text-slate-400">Deploy simplificado via aethel.config</p>
+          <div className="flex items-center gap-2.5">
+            <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-gradient-to-tr from-cyan-500/20 to-emerald-500/20 border border-white/20">
+              <UploadCloud className="w-4 h-4 text-cyan-400" />
+            </div>
+            <div>
+              <h3 className="text-base sm:text-lg font-bold text-white">Novo Deploy na Malha Aethel Kov</h3>
+              <p className="text-[11px] text-neutral-400 font-mono">
+                {isSiteMode ? 'Aplicação Web / Site com 512 MB de RAM' : 'Bot 24/7 com 100 MB via Farol'}
+              </p>
+            </div>
           </div>
+
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab Switcher */}
-        <div className="flex border-b border-white/10 bg-black/30">
-          <button
-            onClick={() => { setActiveTab('zip'); setUploadError(null); }}
-            className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${
-              activeTab === 'zip'
-                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <UploadCloud className="w-4 h-4" />
-            <span>Upload ZIP (100 MB Cota)</span>
-          </button>
+        <div className="flex border-b border-white/10 bg-black/40 font-mono text-xs">
           <button
             onClick={() => { setActiveTab('manual'); setUploadError(null); }}
-            className={`flex-1 py-3 text-xs font-semibold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${
+            className={`flex-1 py-3 font-semibold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${
               activeTab === 'manual'
-                ? 'border-emerald-500 text-emerald-400 bg-emerald-500/5'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
+                ? 'border-cyan-400 text-cyan-300 bg-cyan-500/10'
+                : 'border-transparent text-neutral-400 hover:text-white'
             }`}
           >
             <FileCode className="w-4 h-4" />
-            <span>Config Manual</span>
+            <span>Configuração Rápida</span>
+          </button>
+
+          <button
+            onClick={() => { setActiveTab('zip'); setUploadError(null); }}
+            className={`flex-1 py-3 font-semibold uppercase tracking-wider flex items-center justify-center gap-2 border-b-2 transition-colors ${
+              activeTab === 'zip'
+                ? 'border-emerald-400 text-emerald-300 bg-emerald-500/10'
+                : 'border-transparent text-neutral-400 hover:text-white'
+            }`}
+          >
+            <UploadCloud className="w-4 h-4" />
+            <span>Upload de ZIP</span>
           </button>
         </div>
 
-        {/* Body */}
-        <div className="p-6">
-          {uploadError && (
-            <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0" />
-              <span>{uploadError}</span>
-            </div>
-          )}
+        {/* Error Alert */}
+        {uploadError && (
+          <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-start gap-2.5">
+            <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
+            <span>{uploadError}</span>
+          </div>
+        )}
 
+        <div className="p-6">
           {activeTab === 'zip' ? (
+            /* ========================================================
+               TAB 1: UPLOAD DE ZIP
+               ======================================================== */
             <form onSubmit={handleZipUpload} className="space-y-4">
-              <div className="border-2 border-dashed border-white/10 hover:border-emerald-500/50 rounded-2xl p-6 text-center transition-colors bg-black/20">
-                <input
-                  type="file"
-                  id="zip-upload"
-                  accept=".zip"
-                  onChange={(e) => setZipFile(e.target.files?.[0] || null)}
-                  className="hidden"
-                />
-                <label htmlFor="zip-upload" className="cursor-pointer block">
-                  <UploadCloud className="w-10 h-10 text-emerald-400 mx-auto mb-2 opacity-80" />
-                  <p className="text-sm font-medium text-white">
-                    {zipFile ? zipFile.name : 'Clique para selecionar o arquivo .zip'}
-                  </p>
-                  <p className="text-xs text-slate-400 mt-1">
-                    {zipFile
-                      ? `${(zipFile.size / (1024 * 1024)).toFixed(2)} MB`
-                      : 'Pacote ZIP com aethel.config (Máx 100 MB)'}
-                  </p>
+              <div>
+                <label className="block text-xs font-mono text-neutral-300 mb-1">
+                  Selecione a Plataforma / Tipo de Instância
                 </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlatform('DISCORD');
+                      setRam(100);
+                    }}
+                    className={`p-3 rounded-2xl text-left border transition-all ${
+                      platform === 'DISCORD'
+                        ? 'bg-emerald-500/15 border-emerald-500/40 text-white'
+                        : 'bg-black/30 border-white/10 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-semibold text-xs block">🤖 Bot Discord/Telegram</span>
+                    <span className="text-[10px] font-mono text-neutral-400">100 MB via Farol Discloud</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPlatform('SITE');
+                      setRam(512);
+                    }}
+                    className={`p-3 rounded-2xl text-left border transition-all ${
+                      platform === 'SITE'
+                        ? 'bg-cyan-500/15 border-cyan-400/40 text-white'
+                        : 'bg-black/30 border-white/10 text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <span className="font-semibold text-xs block">🌐 Site Web / Proxy</span>
+                    <span className="text-[10px] font-mono text-cyan-300">512 MB Dedicada + SSL</span>
+                  </button>
+                </div>
               </div>
+
+              {/* Se for Site Web, exige selecionar o subdomínio */}
+              {isSiteMode && (
+                <div className="p-3.5 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 space-y-2">
+                  <span className="text-xs font-mono font-semibold text-cyan-300 flex items-center gap-1.5">
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Subdomínio Obrigatório do Site</span>
+                  </span>
+
+                  {userSubdomains.length === 0 ? (
+                    <div className="space-y-2">
+                      <p className="text-xs text-rose-300 font-mono">
+                        ⚠️ Você ainda não registrou nenhum subdomínio para seu site!
+                      </p>
+                      {onGoToSubdomains && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onGoToSubdomains();
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-cyan-500 text-black font-semibold text-xs font-mono"
+                        >
+                          <span>Registrar Subdomínio Agora</span>
+                          <ArrowRight className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <select
+                      value={selectedSubdomain}
+                      onChange={(e) => setSelectedSubdomain(e.target.value)}
+                      className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/15 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
+                    >
+                      {userSubdomains.map((s) => (
+                        <option key={s.id} value={s.subdomain}>
+                          https://{s.subdomain}.aethel.app ({s.ram_allocated_mb} MB)
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              )}
 
               <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">
-                  Token do Bot (Opcional se já estiver no config)
+                <label className="block text-xs font-mono text-neutral-300 mb-1">
+                  Arquivo do Pacote (.zip)
                 </label>
-                <input
-                  type="password"
-                  value={zipToken}
-                  onChange={(e) => setZipToken(e.target.value)}
-                  placeholder="Bot token Discord ou Telegram..."
-                  className="w-full px-4 py-2.5 rounded-xl bg-black/40 border border-white/10 text-white text-xs placeholder-slate-500 focus:outline-none focus:border-emerald-500"
-                />
+                <div className="relative border-2 border-dashed border-white/15 hover:border-cyan-400/50 rounded-2xl p-6 text-center transition-colors bg-black/40">
+                  <input
+                    type="file"
+                    accept=".zip"
+                    required
+                    onChange={(e) => setZipFile(e.target.files?.[0] || null)}
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                  />
+                  <div className="flex flex-col items-center justify-center gap-2">
+                    <UploadCloud className="w-8 h-8 text-cyan-400" />
+                    <span className="text-xs text-neutral-300 font-mono">
+                      {zipFile ? zipFile.name : 'Arraste o arquivo ZIP ou clique para escolher'}
+                    </span>
+                    <span className="text-[10px] text-neutral-500 font-mono">
+                      {isSiteMode ? 'Cota: Pasta inteira até 512 MB' : 'Cota: Pacote até 100 MB'}
+                    </span>
+                  </div>
+                </div>
               </div>
+
+              {!isSiteMode && (
+                <div>
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">
+                    Token de Autenticação (Opcional se já estiver no .env do ZIP)
+                  </label>
+                  <input
+                    type="password"
+                    value={zipToken}
+                    onChange={(e) => setZipToken(e.target.value)}
+                    placeholder="Token do bot..."
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              )}
 
               <div className="pt-2 flex justify-end gap-3">
                 <button
                   type="button"
                   onClick={onClose}
-                  className="capsule-btn capsule-btn-secondary text-xs"
+                  className="px-4 py-2 rounded-2xl text-xs font-mono text-neutral-400 hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading}
-                  className="capsule-btn capsule-btn-primary text-xs"
+                  disabled={isUploading || (isSiteMode && userSubdomains.length === 0)}
+                  className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50"
                 >
-                  {isUploading ? 'Fazendo Deploy...' : 'Iniciar Deploy na Malha'}
+                  {isUploading ? 'Fazendo Deploy...' : isSiteMode && userSubdomains.length === 0 ? 'Cadastre um Subdomínio Primeiro' : 'Iniciar Deploy na Malha'}
                 </button>
               </div>
             </form>
           ) : (
-            <form onSubmit={handleManualCreate} className="space-y-3.5">
-              <div className="grid grid-cols-2 gap-3">
+            /* ========================================================
+               TAB 2: CONFIGURAÇÃO RÁPIDA MANUAL
+               ======================================================== */
+            <form onSubmit={handleManualCreate} className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Nome da Instância</label>
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">Nome da Instância</label>
                   <input
                     type="text"
                     required
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    placeholder="meu-bot"
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
+                    placeholder={isSiteMode ? 'meu-site-web' : 'meu-bot-discord'}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Plataforma</label>
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">Plataforma / Modo</label>
                   <select
                     value={platform}
-                    onChange={(e) => setPlatform(e.target.value as BotPlatform)}
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
+                    onChange={(e) => {
+                      const next = e.target.value as BotPlatform;
+                      setPlatform(next);
+                      if (next === 'SITE') {
+                        setRam(512);
+                        setMainFile('index.html');
+                        setConfigType('site');
+                      } else {
+                        setRam(100);
+                        setMainFile('index.js');
+                        setConfigType('aethel');
+                      }
+                    }}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
                   >
-                    <option value="DISCORD">Discord</option>
-                    <option value="TELEGRAM">Telegram</option>
+                    <option value="DISCORD">Discord Bot (100 MB via Farol)</option>
+                    <option value="TELEGRAM">Telegram Bot (100 MB via Farol)</option>
+                    <option value="SITE">🌐 Site Web / Proxy (512 MB Dedicada)</option>
                   </select>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-xs font-medium text-slate-300 mb-1">Token de Autenticação</label>
-                <input
-                  type="password"
-                  required
-                  value={token}
-                  onChange={(e) => setToken(e.target.value)}
-                  placeholder="Token seguro..."
-                  className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
-                />
-              </div>
+              {/* SEÇÃO OBRIGATÓRIA DE SUBDOMÍNIO PARA SITES */}
+              {isSiteMode && (
+                <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-400/30 space-y-2">
+                  <span className="text-xs font-mono font-semibold text-cyan-300 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5" />
+                      <span>Subdomínio Obrigatório do Site</span>
+                    </span>
+                    <span className="text-[10px] text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" /> SSL Automático
+                    </span>
+                  </span>
 
-              <div className="grid grid-cols-3 gap-3">
+                  {userSubdomains.length === 0 ? (
+                    <div className="space-y-2 pt-1">
+                      <p className="text-xs text-rose-300 font-mono">
+                        ⚠️ Você não possui nenhum subdomínio registrado. Para publicar um site, registre um subdomínio primeiro!
+                      </p>
+                      {onGoToSubdomains && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onClose();
+                            onGoToSubdomains();
+                          }}
+                          className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-cyan-400 hover:bg-cyan-300 text-black font-semibold text-xs font-mono transition-colors"
+                        >
+                          <Globe className="w-3.5 h-3.5" />
+                          <span>Ir para Aba Subdomínios & Criar</span>
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="space-y-1">
+                      <select
+                        value={selectedSubdomain}
+                        onChange={(e) => setSelectedSubdomain(e.target.value)}
+                        className="w-full px-3.5 py-2.5 rounded-xl bg-black/60 border border-white/15 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
+                      >
+                        {userSubdomains.map((s) => (
+                          <option key={s.id} value={s.subdomain}>
+                            https://{s.subdomain}.aethel.app ({s.ram_allocated_mb} MB)
+                          </option>
+                        ))}
+                      </select>
+                      <p className="text-[10px] text-neutral-400 font-mono">
+                        Sua aplicação responderá mundialmente sob este link 24/7.
+                      </p>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!isSiteMode ? (
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Arquivo Main</label>
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">Token de Autenticação</label>
+                  <input
+                    type="password"
+                    required
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="Token do Discord ou Telegram..."
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-emerald-500"
+                  />
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">
+                    Chave Secreta ou Token de API (Opcional para sites públicos)
+                  </label>
+                  <input
+                    type="text"
+                    value={token}
+                    onChange={(e) => setToken(e.target.value)}
+                    placeholder="Chave secreta interna ou deixe vazio..."
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
+                  />
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">Arquivo Main</label>
                   <input
                     type="text"
                     value={mainFile}
                     onChange={(e) => setMainFile(e.target.value)}
-                    placeholder="index.js"
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
+                    placeholder={isSiteMode ? 'index.html' : 'index.js'}
+                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
                   />
                 </div>
+
                 <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">RAM (Máx 100 MB)</label>
-                  <input
-                    type="number"
-                    max={100}
-                    min={25}
-                    value={ram}
-                    onChange={(e) => setRam(Number(e.target.value))}
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
-                  />
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">
+                    RAM ({isSiteMode ? '512 MB Dedicada' : 'Máx 100 MB'})
+                  </label>
+                  <div className="flex items-center px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono">
+                    <HardDrive className="w-3.5 h-3.5 text-cyan-400 mr-2 shrink-0" />
+                    <span>{isSiteMode ? '512 MB' : `${ram} MB`}</span>
+                  </div>
                 </div>
-                <div>
-                  <label className="block text-xs font-medium text-slate-300 mb-1">Formato Config</label>
-                  <select
-                    value={configType}
-                    onChange={(e) => setConfigType(e.target.value as any)}
-                    className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
-                  >
-                    <option value="aethel">aethel.config</option>
-                  </select>
+
+                <div className="col-span-2 sm:col-span-1">
+                  <label className="block text-xs font-mono text-neutral-300 mb-1">Formato</label>
+                  <div className="flex items-center px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-neutral-300 text-xs font-mono">
+                    <span>{isSiteMode ? 'aethel (type=site)' : 'aethel.config'}</span>
+                  </div>
                 </div>
               </div>
 
@@ -291,16 +546,16 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
                 <button
                   type="button"
                   onClick={onClose}
-                  className="capsule-btn capsule-btn-secondary text-xs"
+                  className="px-4 py-2 rounded-2xl text-xs font-mono text-neutral-400 hover:text-white"
                 >
                   Cancelar
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading}
-                  className="capsule-btn capsule-btn-primary text-xs"
+                  disabled={isUploading || (isSiteMode && userSubdomains.length === 0)}
+                  className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50"
                 >
-                  {isUploading ? 'Criando...' : 'Registrar Instância'}
+                  {isUploading ? 'Criando...' : isSiteMode && userSubdomains.length === 0 ? 'Cadastre um Subdomínio Primeiro' : 'Registrar Instância'}
                 </button>
               </div>
             </form>
@@ -310,4 +565,3 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
     </div>
   );
 };
-

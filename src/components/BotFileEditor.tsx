@@ -122,18 +122,34 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
   saveToast,
 }) => {
   // Arquivos em árvore hierárquica preparados para pastas e subpastas
-  const [files, setFiles] = useState<Record<string, string>>({
-    'aethel.config': `NAME=${botName}\nTYPE=bot\nMAIN=${mainFile || 'index.js'}\nRAM=${ramLimitMb || 100}\nPLATFORM=${platform}\nAUTORESTART=true\nVERSION=latest`,
-    [mainFile || 'index.js']: `/**\n * ${botName} - Main Entry Point\n * Executado na malha de nós Aethel Kov\n */\nconst { Client } = require('ws');\n\nconsole.log('[Aethel-Runner] Instância inicializada com sucesso!');\n\nmodule.exports = {\n  ready: () => {\n    console.log('Bot conectado 24/7 com latência < 20ms!');\n  },\n  message: (msg) => {\n    if (msg.content === '!ping') {\n      msg.reply('Pong! Latência da Malha: 18ms.');\n    }\n  }\n};`,
-    'package.json': `{\n  "name": "${botName.toLowerCase().replace(/[^a-z0-9]/g, '-')}",\n  "version": "1.0.0",\n  "main": "${mainFile || 'index.js'}",\n  "dependencies": {\n    "ws": "^8.18.0"\n  }\n}`,
-    '.env': `TOKEN=${tokenEncrypted ? '••••••••••••••••' : ''}\nPREFIX=!\nNODE_ENV=production`,
-    'src/commands/ping.js': `// Comando de Teste de Latência\nmodule.exports = {\n  name: 'ping',\n  description: 'Retorna a latência atual do bot',\n  execute: (message) => {\n    message.reply('Pong! Heartbeat ativo na Aethel Kov.');\n  }\n};`,
-    'src/commands/help.js': `// Comando de Ajuda\nmodule.exports = {\n  name: 'help',\n  description: 'Lista de comandos disponíveis',\n  execute: (message) => {\n    message.reply('Comandos: !ping, !help, !status.');\n  }\n};`,
-    'src/events/ready.js': `// Evento disparado quando a conexão é estabelecida\nmodule.exports = {\n  event: 'ready',\n  once: true,\n  run: (client) => {\n    console.log('[Aethel-Runner] Event Ready disparado com sucesso!');\n  }\n};`,
-    'config/settings.json': `{\n  "autoRestart": true,\n  "maxMemoryMb": ${ramLimitMb || 100},\n  "logLevel": "DEBUG",\n  "heartbeatIntervalMs": 800\n}`
+  const [files, setFiles] = useState<Record<string, string>>(() => {
+    if (platform === 'SITE') {
+      const siteFiles: Record<string, string> = {
+        'aethel.config': `NAME=${botName}\nTYPE=site\nMAIN=index.html\nRAM=512\nPORT=8080\nAUTORESTART=true\nVERSION=latest`,
+        'index.html': `<!DOCTYPE html>\n<html lang="pt-BR">\n<head>\n  <meta charset="UTF-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1.0">\n  <title>${botName} | Aethel Cloud</title>\n  <link rel="stylesheet" href="style.css">\n</head>\n<body>\n  <div class="card">\n    <h1>🌐 ${botName}</h1>\n    <p>Aplicação web rodando 24/7 com 512 MB de RAM dedicada na malha Aethel Kov.</p>\n    <button id="btn">Testar Conexão</button>\n  </div>\n  <script src="script.js"></script>\n</body>\n</html>`,
+        'style.css': `body {\n  font-family: system-ui, -apple-system, sans-serif;\n  background: #07080a;\n  color: #f1f5f9;\n  display: flex;\n  justify-content: center;\n  align-items: center;\n  min-height: 100vh;\n  margin: 0;\n}\n.card {\n  background: rgba(255, 255, 255, 0.05);\n  border: 1px solid rgba(255, 255, 255, 0.15);\n  border-radius: 28px;\n  padding: 3rem;\n  text-align: center;\n  backdrop-filter: blur(20px);\n  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.7);\n}\nh1 { color: #38bdf8; margin-bottom: 0.5rem; }\nbutton {\n  margin-top: 1.5rem;\n  padding: 0.75rem 1.75rem;\n  border-radius: 9999px;\n  border: none;\n  background: #10b981;\n  color: white;\n  font-weight: 600;\n  cursor: pointer;\n}`,
+        'script.js': `// Lógica Frontend & Proxies\nconsole.log('[Aethel-Web] Aplicação iniciada com sucesso!');\ndocument.getElementById('btn')?.addEventListener('click', () => {\n  alert('Conexão ativa! Latência da Malha: < 20ms');\n});`,
+        'package.json': `{\n  "name": "${botName.toLowerCase().replace(/[^a-z0-9]/g, '-')}",\n  "version": "1.0.0",\n  "main": "server.js",\n  "dependencies": {\n    "express": "^4.19.2"\n  }\n}`,
+        '.env': `PORT=8080\nNODE_ENV=production\nAPI_SECRET=aethel-live-token`,
+        'api/routes.js': `// Rotas de API e Proxy 24/7\nmodule.exports = {\n  health: (req, res) => res.json({ status: 'ONLINE', memory_mb: 512 }),\n  proxy: (req, res) => {\n    // Repasse de Webhook\n    res.json({ success: true, forwarded_at: new Date() });\n  }\n};`
+      };
+      return siteFiles;
+    }
+
+    const botFiles: Record<string, string> = {
+      'aethel.config': `NAME=${botName}\nTYPE=bot\nMAIN=${mainFile || 'index.js'}\nRAM=${ramLimitMb || 100}\nPLATFORM=${platform}\nAUTORESTART=true\nVERSION=latest`,
+      [mainFile || 'index.js']: `/**\n * ${botName} - Main Entry Point\n * Executado na malha de nós Aethel Kov\n */\nconst { Client } = require('ws');\n\nconsole.log('[Aethel-Runner] Instância inicializada com sucesso!');\n\nmodule.exports = {\n  ready: () => {\n    console.log('Bot conectado 24/7 com latência < 20ms!');\n  },\n  message: (msg) => {\n    if (msg.content === '!ping') {\n      msg.reply('Pong! Latência da Malha: 18ms.');\n    }\n  }\n};`,
+      'package.json': `{\n  "name": "${botName.toLowerCase().replace(/[^a-z0-9]/g, '-')}",\n  "version": "1.0.0",\n  "main": "${mainFile || 'index.js'}",\n  "dependencies": {\n    "ws": "^8.18.0"\n  }\n}`,
+      '.env': `TOKEN=${tokenEncrypted ? '••••••••••••••••' : ''}\nPREFIX=!\nNODE_ENV=production`,
+      'src/commands/ping.js': `// Comando de Teste de Latência\nmodule.exports = {\n  name: 'ping',\n  description: 'Retorna a latência atual do bot',\n  execute: (message) => {\n    message.reply('Pong! Heartbeat ativo na Aethel Kov.');\n  }\n};`,
+      'src/commands/help.js': `// Comando de Ajuda\nmodule.exports = {\n  name: 'help',\n  description: 'Lista de comandos disponíveis',\n  execute: (message) => {\n    message.reply('Comandos: !ping, !help, !status.');\n  }\n};`,
+      'src/events/ready.js': `// Evento disparado quando a conexão é estabelecida\nmodule.exports = {\n  event: 'ready',\n  once: true,\n  run: (client) => {\n    console.log('[Aethel-Runner] Event Ready disparado com sucesso!');\n  }\n};`,
+      'config/settings.json': `{\n  "autoRestart": true,\n  "maxMemoryMb": ${ramLimitMb || 100},\n  "logLevel": "DEBUG",\n  "heartbeatIntervalMs": 800\n}`
+    };
+    return botFiles;
   });
 
-  const [selectedFile, setSelectedFile] = useState<string>(mainFile || 'index.js');
+  const [selectedFile, setSelectedFile] = useState<string>(() => (platform === 'SITE' ? 'index.html' : mainFile || 'index.js'));
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
   const [viewMode, setViewMode] = useState<'edit' | 'split' | 'highlight'>('split');
   const [newFileInputOpen, setNewFileInputOpen] = useState(false);
@@ -661,3 +677,4 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
     </div>
   );
 };
+

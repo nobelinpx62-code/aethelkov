@@ -12,6 +12,7 @@ import { PresentationLanding } from '@/components/PresentationLanding';
 import { LoginView } from '@/components/LoginView';
 import { GiftCelebrationModal } from '@/components/GiftCelebrationModal';
 import { UserProfileModal } from '@/components/UserProfileModal';
+import { SubdomainManager } from '@/components/SubdomainManager';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -36,7 +37,8 @@ export default function DashboardPage() {
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
   const focusedBot = bots.find((b) => b.id === focusedBotId) || null;
-  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances'>('overview');
+  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'subdomains'>('overview');
+  const [deployInitialSubdomain, setDeployInitialSubdomain] = useState<string | null>(null);
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -320,6 +322,15 @@ export default function DashboardPage() {
                 onRefresh={fetchBotsAndStats}
                 onDeleteBot={handleDeleteBot}
               />
+            ) : activeNavTab === 'subdomains' ? (
+              /* Gerenciador de Subdomínios & Sites (512 MB) */
+              <SubdomainManager
+                userId={getUserKey(currentUser)}
+                onDeploySiteWithSubdomain={(sub) => {
+                  setDeployInitialSubdomain(sub);
+                  setIsDeployOpen(true);
+                }}
+              />
             ) : (
               /* Visão Geral (Apple Liquid Dashboard) */
               <div className="space-y-8 animate-fadeIn">
@@ -401,11 +412,21 @@ export default function DashboardPage() {
         {/* Deploy Modal */}
         <DeployModal
           isOpen={isDeployOpen}
-          onClose={() => setIsDeployOpen(false)}
+          onClose={() => {
+            setIsDeployOpen(false);
+            setDeployInitialSubdomain(null);
+          }}
           onSuccess={() => {
             fetchBotsAndStats();
             setNotification('🚀 Instância implantada com sucesso na malha Aethelkov!');
             setTimeout(() => setNotification(null), 5000);
+          }}
+          userId={getUserKey(currentUser)}
+          initialSubdomain={deployInitialSubdomain}
+          onGoToSubdomains={() => {
+            setActiveNavTab('subdomains');
+            setFocusedBotId(null);
+            setIsAdminPanelOpen(false);
           }}
         />
 

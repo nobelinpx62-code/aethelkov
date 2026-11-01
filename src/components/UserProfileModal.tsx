@@ -356,3 +356,4 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     </div>
   );
 };
+

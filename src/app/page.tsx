@@ -80,6 +80,18 @@ export default function DashboardPage() {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Trata eventuais parâmetros de erro ou redirecionamento na URL
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    const errorDesc = params.get('error_description');
+    if (errorDesc) {
+      setNotification(`Aviso de Autenticação: ${decodeURIComponent(errorDesc.replace(/\+/g, ' '))}`);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setTimeout(() => setNotification(null), 8000);
+    }
+  }, []);
+
   // Monitora e carrega bônus e presentes do usuário logado
   useEffect(() => {
     if (!currentUser) {

@@ -124,6 +124,17 @@ export const LoginView: React.FC<LoginViewProps> = ({
     return () => clearInterval(interval);
   }, [isPaused, slides.length]);
 
+  // URL de Redirecionamento Dinâmica (Produção Vercel ou Localhost)
+  const getRedirectUrl = () => {
+    if (typeof window !== 'undefined') {
+      if (window.location.hostname.includes('vercel.app') || window.location.hostname === 'aethelkov.vercel.app') {
+        return 'https://aethelkov.vercel.app/';
+      }
+      return `${window.location.origin}/`;
+    }
+    return 'https://aethelkov.vercel.app/';
+  };
+
   // Login com Discord OAuth2
   const handleDiscordLogin = async () => {
     setDiscordLoading(true);
@@ -131,10 +142,11 @@ export const LoginView: React.FC<LoginViewProps> = ({
     setSuccessMessage(null);
 
     try {
+      const redirectTarget = getRedirectUrl();
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'discord',
         options: {
-          redirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : undefined,
+          redirectTo: redirectTarget,
           scopes: 'identify email guilds',
         },
       });
@@ -176,7 +188,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
           email: email.trim(),
           password,
           options: {
-            emailRedirectTo: typeof window !== 'undefined' ? window.location.origin : undefined,
+            emailRedirectTo: getRedirectUrl(),
           },
         });
 

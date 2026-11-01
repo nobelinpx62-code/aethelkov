@@ -159,15 +159,11 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       <div className="flex items-center justify-between">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-400 hover:text-white px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-400 hover:text-white px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
           <span>Voltar para todas as instâncias</span>
         </button>
-
-        <span className="text-xs font-mono text-slate-500">
-          Nó Farol: <strong className="text-slate-300">{bot.assigned_node || 'farol-alpha'}</strong>
-        </span>
       </div>
 
       {/* HEADER PRINCIPAL (Estilo Discloud Pro) */}

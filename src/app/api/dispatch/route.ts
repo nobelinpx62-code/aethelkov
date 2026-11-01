@@ -52,7 +52,7 @@ export async function POST(req: NextRequest) {
       } else if (lower.includes('aethelkov') || lower.includes('oi tudo bem') || lower.startsWith('!ajuda') || lower.startsWith('!help')) {
         replyText = `⚡ Olá **${author}**! Este bot está ativo 24/7 na malha **Aethelkov**.\nUse \`!ping\`, \`!info\` ou mencione o bot!`;
       } else if (lower.startsWith('!status') || lower.startsWith('!info')) {
-        replyText = '🟢 **Status da Instância:** Online 24/7\n🛰️ **Gateway:** Aethel-Farol Realtime Grid\n⚙️ **Engine:** Aethel Runner Core (<25ms execution)\n⚡ **Status:** Alta Disponibilidade 24/7';
+        replyText = '🟢 **Status da Instância:** Online 24/7\n🛰️ **Gateway:** Aethel Realtime Grid\n⚙️ **Engine:** Aethel Runner Core (<25ms execution)\n⚡ **Status:** Alta Disponibilidade 24/7';
       } else if (isMentioned) {
         replyText = `👋 Olá **${author}**! Eu sou um bot ativo na malha **Aethelkov**. Digite \`!ping\` para testar!`;
       }

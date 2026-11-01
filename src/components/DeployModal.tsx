@@ -235,8 +235,8 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
                     onChange={(e) => setPlatform(e.target.value as BotPlatform)}
                     className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
                   >
-                    <option value="DISCORD">Discord (Farol Node)</option>
-                    <option value="TELEGRAM">Telegram (Serverless Webhook)</option>
+                    <option value="DISCORD">Discord</option>
+                    <option value="TELEGRAM">Telegram</option>
                   </select>
                 </div>
               </div>

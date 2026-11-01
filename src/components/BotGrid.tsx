@@ -175,7 +175,7 @@ export const BotGrid: React.FC<BotGridProps> = ({
                       </span>
                     </div>
                     <p className="font-mono text-xs text-neutral-400 mt-0.5">
-                      Nó: <strong className="text-neutral-300">{bot.assigned_node || 'farol-alpha'}</strong> &bull; Entrada: {bot.main_file}
+                      Arquivo de Entrada: <strong className="text-neutral-300">{bot.main_file}</strong>
                     </p>
                   </div>
                 </div>

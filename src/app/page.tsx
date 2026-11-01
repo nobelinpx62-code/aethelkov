@@ -251,11 +251,6 @@ export default function DashboardPage() {
             setIsAdminPanelOpen(true);
           }}
         />
-
-        {/* Rodapé Minimalista */}
-        <footer className="mt-auto py-8 text-center border-t border-white/5 font-mono text-xs text-neutral-500">
-          Aethel Kov Systems &copy; 2026. Design concebido sob ótica Liquid Glass.
-        </footer>
       </div>
     </div>
   );

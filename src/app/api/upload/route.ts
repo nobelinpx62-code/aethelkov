@@ -56,7 +56,7 @@ export async function POST(req: NextRequest) {
 
     if (!configContent) {
       return NextResponse.json({
-        error: 'Arquivo de configuração não encontrado no ZIP. Inclua um "aethel.config" ou "discloud.config".',
+        error: 'Arquivo de configuração não encontrado no ZIP. Inclua um arquivo "aethel.config".',
       }, { status: 400 });
     }
 

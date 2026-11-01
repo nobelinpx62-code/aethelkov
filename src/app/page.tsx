@@ -3,14 +3,13 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Navbar } from '@/components/Navbar';
 import { MetricsBanner } from '@/components/MetricsBanner';
-import { StorageHUD } from '@/components/StorageHUD';
 import { BotGrid } from '@/components/BotGrid';
 import { DeployModal } from '@/components/DeployModal';
 import { BotDetailView } from '@/components/BotDetailView';
 import { AdminAuthModal } from '@/components/AdminAuthModal';
 import { AdminPanel } from '@/components/AdminPanel';
 import { AethelBot, ClusterStats } from '@/lib/types';
-import { ShieldCheck, CheckCircle2, Plus } from 'lucide-react';
+import { CheckCircle2, Plus } from 'lucide-react';
 
 export default function DashboardPage() {
   const [bots, setBots] = useState<AethelBot[]>([]);
@@ -26,7 +25,7 @@ export default function DashboardPage() {
 
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
-  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'storage'>('overview');
+  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances'>('overview');
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -91,7 +90,7 @@ export default function DashboardPage() {
     const targetBot = bots.find(b => b.id === botId);
     const botName = targetBot ? targetBot.bot_name : 'esta instância';
 
-    if (!confirm(`Tem certeza que deseja apagar ${botName}? A conexão na Discloud será encerrada e o registro excluído.`)) {
+    if (!confirm(`Tem certeza que deseja apagar ${botName}? A instância será desconectada e o registro excluído.`)) {
       return;
     }
 
@@ -194,7 +193,7 @@ export default function DashboardPage() {
                     Painel Operacional
                   </h1>
                   <p className="text-sm text-neutral-400 mt-1">
-                    Gerenciamento autônomo de aplicações via <span className="text-white font-mono">aethel.config</span> &amp; <span className="text-white font-mono">discloud.config</span>
+                    Gerenciamento soberano de aplicações via <span className="text-white font-mono">aethel.config</span>
                   </p>
                 </div>
 
@@ -213,12 +212,6 @@ export default function DashboardPage() {
               {activeNavTab === 'overview' && (
                 <section className="w-full">
                   <MetricsBanner stats={stats} />
-                </section>
-              )}
-
-              {activeNavTab === 'storage' && (
-                <section className="w-full">
-                  <StorageHUD usedBytes={totalStorageBytes} />
                 </section>
               )}
 

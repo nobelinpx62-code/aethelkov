@@ -116,7 +116,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <div>
             <h3 className="text-lg font-bold text-white">Novo Deploy de Instância</h3>
-            <p className="text-xs text-slate-400">Compatibilidade nativa com aethel.config e discloud.config</p>
+            <p className="text-xs text-slate-400">Deploy soberano via aethel.config</p>
           </div>
           <button
             onClick={onClose}
@@ -179,7 +179,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
                   <p className="text-xs text-slate-400 mt-1">
                     {zipFile
                       ? `${(zipFile.size / (1024 * 1024)).toFixed(2)} MB`
-                      : 'Suporte a discloud.config ou aethel.config (Máx 100 MB)'}
+                      : 'Pacote ZIP com aethel.config (Máx 100 MB)'}
                   </p>
                 </label>
               </div>
@@ -283,7 +283,6 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
                     className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-500"
                   >
                     <option value="aethel">aethel.config</option>
-                    <option value="discloud">discloud.config</option>
                   </select>
                 </div>
               </div>

@@ -303,8 +303,8 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
           <div className="text-[11px] text-neutral-400 mt-2 font-mono flex items-center justify-between">
             {isOnline ? (
               <>
-                <span>15.8 MB (Node.js) + {(currentRam - 15.8 > 0 ? (currentRam - 15.8).toFixed(1) : '0.0')} MB (Deps & Código)</span>
-                <span className="text-emerald-400 font-semibold">{ramPercent}%</span>
+                <span>Consumo em tempo real</span>
+                <span className="text-emerald-400 font-semibold">{ramPercent}% da cota</span>
               </>
             ) : (
               <span className="text-neutral-500">Instância pausada (0.00 MB em execução)</span>
@@ -326,7 +326,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
             0.25
           </div>
           <div className="text-xs text-neutral-400 mt-2 font-mono">
-            AMD Epyc • Vercel MicroVM Runner
+            AMD Epyc • Aethel Runner Core
           </div>
         </div>
 

@@ -115,7 +115,7 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `discloud-${node.nodeId}.config`;
+    a.download = `aethel-${node.nodeId}.config`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -185,9 +185,9 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
                 </span>
               </div>
 
-              {/* Sub-Badges Discloud */}
+              {/* Sub-Badges */}
               <div className="flex items-center gap-3 text-xs text-neutral-400 mt-1.5 font-mono">
-                <span className="text-emerald-400 font-semibold tracking-wide">ASTRA</span>
+                <span className="text-emerald-400 font-semibold tracking-wide">AETHEL-GRID</span>
                 <span>&bull;</span>
                 <span className="text-neutral-300">&lt;&gt; javascript</span>
                 <span>&bull;</span>
@@ -196,7 +196,7 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
             </div>
           </div>
 
-          {/* Botões de Ação estilo Cápsula Discloud */}
+          {/* Botões de Ação estilo Cápsula */}
           <div className="flex items-center gap-2 flex-wrap">
             <button
               onClick={handleRestartNode}
@@ -210,7 +210,7 @@ export const NodeDetailModal: React.FC<NodeDetailModalProps> = ({
             <button
               onClick={handleDownloadBackup}
               className="apple-pill-btn rounded-full px-4 py-2 text-xs font-mono font-semibold text-neutral-200 flex items-center gap-2"
-              title="Baixar discloud.config deste nó"
+              title="Baixar aethel.config deste nó"
             >
               <Download className="w-3.5 h-3.5 text-indigo-400" />
               <span>Backup</span>

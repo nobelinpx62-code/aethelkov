@@ -171,7 +171,7 @@ export const BotGrid: React.FC<BotGridProps> = ({
                         {bot.platform}
                       </span>
                       <span className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-neutral-400">
-                        {bot.config_type}.config
+                        aethel.config
                       </span>
                     </div>
                     <p className="font-mono text-xs text-neutral-400 mt-0.5">

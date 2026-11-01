@@ -8,8 +8,8 @@ interface NavbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onTriggerAdmin: () => void;
-  activeNavTab: 'overview' | 'instances' | 'storage';
-  onSelectNavTab: (tab: 'overview' | 'instances' | 'storage') => void;
+  activeNavTab: 'overview' | 'instances';
+  onSelectNavTab: (tab: 'overview' | 'instances') => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -93,24 +93,6 @@ export const Navbar: React.FC<NavbarProps> = ({
             }`}
           >
             Instâncias
-          </button>
-          <button
-            onClick={() => onSelectNavTab('storage')}
-            className={`rounded-full px-4 py-1.5 font-medium transition-all ${
-              activeNavTab === 'storage'
-                ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
-                : 'text-neutral-400 hover:text-white'
-            }`}
-          >
-            Storage Vault
-          </button>
-          <button
-            onClick={onTriggerAdmin}
-            className="rounded-full px-3 py-1.5 font-medium text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-colors"
-            title="Acesso rápido ao Admin Root"
-          >
-            <Shield className="w-3 h-3" />
-            <span>Admin Mesh</span>
           </button>
         </div>
 

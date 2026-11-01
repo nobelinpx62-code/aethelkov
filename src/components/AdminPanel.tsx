@@ -641,7 +641,7 @@ setInterval(reportNodeHeartbeat, 15000);
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-neutral-400 mt-0.5">Discloud Node &bull; Telemetria</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">Aethel Node &bull; Telemetria</p>
                     </div>
 
                     <div className="flex items-center gap-2">
@@ -972,15 +972,15 @@ setInterval(reportNodeHeartbeat, 15000);
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
             <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
-              <span className="text-neutral-500 text-[10px] block">SUPABASE STATE VAULT</span>
-              <span className="text-white truncate block">https://rrxrcxutdzedkqaesdkm.supabase.co</span>
+              <span className="text-neutral-500 text-[10px] block">AETHEL STATE VAULT</span>
+              <span className="text-white truncate block">rtc.aethelkov.internal:db</span>
               <span className="text-emerald-400 text-[10px] block">Conexão Ativa via WebSockets RTC</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
-              <span className="text-neutral-500 text-[10px] block">VERCEL RUNNER DISPATCH</span>
+              <span className="text-neutral-500 text-[10px] block">AETHEL RUNNER DISPATCH</span>
               <span className="text-white truncate block">/api/dispatch (Autenticado via Header)</span>
-              <span className="text-cyan-400 text-[10px] block">Latência Média: &lt; 40ms</span>
+              <span className="text-cyan-400 text-[10px] block">Latência Média: &lt; 25ms</span>
             </div>
 
             <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">

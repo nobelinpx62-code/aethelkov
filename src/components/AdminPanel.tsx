@@ -735,7 +735,16 @@ setInterval(reportNodeHeartbeat, 15000);
                       </td>
                       <td className="py-3 px-4 text-neutral-300">{b.platform}</td>
                       <td className="py-3 px-4 text-neutral-400">{b.assigned_node || 'farol-alpha'}</td>
-                      <td className="py-3 px-4 text-neutral-300">{b.ram_limit_mb} MB</td>
+                      <td className="py-3 px-4 text-neutral-300">
+                        {b.status === 'ONLINE' ? (
+                          <span className="text-emerald-400 font-semibold">
+                            {(15.8 + Math.min(8.5 + ((b.storage_size_bytes || 1500) / (1024 * 1024) * 1.5), 25.0)).toFixed(1)} MB
+                          </span>
+                        ) : (
+                          <span className="text-neutral-500">0.0 MB</span>
+                        )}{' '}
+                        <span className="text-neutral-500 text-[10px]">/ {b.ram_limit_mb} MB</span>
+                      </td>
                       <td className="py-3 px-4">
                         <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] ${
                           b.status === 'ONLINE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'

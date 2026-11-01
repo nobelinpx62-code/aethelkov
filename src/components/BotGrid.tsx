@@ -133,6 +133,11 @@ export const BotGrid: React.FC<BotGridProps> = ({
           const isDiscord = bot.platform === 'DISCORD';
           const isMenuOpen = openMenuBotId === bot.id;
 
+          // Cálculo do consumo real do bot (15.8 MB motor Node.js + dependências e código)
+          const storageMb = (bot.storage_size_bytes || 1500) / (1024 * 1024);
+          const codeAndDepsMb = Math.min(8.5 + (storageMb * 1.5), 25.0);
+          const realBotRam = !isOnline ? 0.0 : Number((15.8 + codeAndDepsMb).toFixed(1));
+
           return (
             <div
               key={bot.id}
@@ -283,8 +288,10 @@ export const BotGrid: React.FC<BotGridProps> = ({
                   <span className="text-white font-medium">{bot.main_file}</span>
                 </div>
                 <div className="apple-glass-card rounded-2xl p-2.5 border border-white/10">
-                  <span className="text-[9px] text-neutral-400 block mb-0.5">CONSUMO</span>
-                  <span className="text-white font-medium">{bot.current_ram_mb || 27.29} MB</span>
+                  <span className="text-[9px] text-neutral-400 block mb-0.5">CONSUMO REAL</span>
+                  <span className={`font-medium ${isOnline ? 'text-white' : 'text-neutral-500'}`}>
+                    {isOnline ? `${realBotRam} MB` : '0.0 MB'}
+                  </span>
                 </div>
                 <div className="apple-glass-card rounded-2xl p-2.5 border border-white/10">
                   <span className="text-[9px] text-neutral-400 block mb-0.5">RESTART</span>

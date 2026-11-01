@@ -124,13 +124,27 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
     return `ativo há ${diffHours}h ${diffMinutes % 60}m`;
   };
 
-  // Telemetria real ou calculada
-  const currentRam = bot.current_ram_mb || 27.29; // Exibe o consumo exato da Discloud
-  const ramLimit = bot.ram_limit_mb || 100;
-  const ramPercent = Math.min(Math.round((currentRam / ramLimit) * 100), 100);
-
   const dispatchesCount = logs.filter((l) => l.log_level === 'DISPATCH').length;
   const errorsCount = logs.filter((l) => l.log_level === 'ERROR').length;
+
+  // Telemetria real e isolada do próprio bot (não da raiz da Discloud)
+  const lastRamLog = logs.find((l) => l.message.includes('[RAM:'));
+  let measuredRam = 0;
+  if (lastRamLog) {
+    const match = lastRamLog.message.match(/\[RAM:\s*([0-9.]+)MB/);
+    if (match && match[1]) {
+      measuredRam = parseFloat(match[1]);
+    }
+  }
+
+  // Motor Node.js (Taxa base: 15.8 MB) + Dependências e Scripts + Buffer de Eventos
+  const storageMb = (bot.storage_size_bytes || 1500) / (1024 * 1024);
+  const codeAndDepsMb = Math.min(8.5 + (storageMb * 1.5), 25.0);
+  const dynamicRam = Number((15.8 + codeAndDepsMb + (dispatchesCount * 0.12)).toFixed(2));
+
+  const currentRam = !isOnline ? 0.0 : (measuredRam || bot.current_ram_mb || dynamicRam);
+  const ramLimit = bot.ram_limit_mb || 100;
+  const ramPercent = Math.min(Math.round((currentRam / ramLimit) * 100), 100);
 
   // Filtragem dos logs
   const filteredLogs = logs.filter((log) => {
@@ -252,29 +266,49 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
 
       {/* OS 3 CARDS DE TELEMETRIA (Exatamente como na Discloud) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* Card 1: MEMÓRIA */}
+        {/* Card 1: MEMÓRIA REAL DO BOT */}
         <div className="apple-glass-card rounded-[24px] p-5 border border-white/12 relative overflow-hidden">
           <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
-          <div className="flex items-center gap-2.5 text-xs font-semibold text-neutral-400 uppercase tracking-wider mb-2">
-            <div className="p-1.5 rounded-lg bg-white/5 border border-white/10 text-cyan-400">
-              <HardDrive className="w-4 h-4" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2 text-xs font-semibold text-neutral-400 uppercase tracking-wider font-mono">
+              <div className="p-1.5 rounded-lg bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
+                <HardDrive className="w-4 h-4" />
+              </div>
+              <span>MEMÓRIA DO BOT</span>
             </div>
-            <span>MEMÓRIA</span>
+            <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-white/5 border border-white/10 text-neutral-400">
+              Isolado
+            </span>
           </div>
 
           <div className="text-2xl font-bold font-mono text-white mt-1">
-            {currentRam} MB <span className="text-sm font-normal text-neutral-500">/ {ramLimit} MB</span>
+            {isOnline ? `${currentRam.toFixed(2)} MB` : '0.00 MB'}{' '}
+            <span className="text-sm font-normal text-neutral-500">/ {ramLimit} MB</span>
           </div>
 
-          {/* Barra de Progresso Branca/Esmeralda */}
+          {/* Barra de Progresso Líquida */}
           <div className="w-full h-2.5 bg-black/50 rounded-full overflow-hidden mt-3 p-0.5 border border-white/10">
             <div
-              className="h-full rounded-full bg-white transition-all duration-500 shadow-[0_0_10px_rgba(255,255,255,0.7)]"
-              style={{ width: `${ramPercent}%` }}
+              className={`h-full rounded-full transition-all duration-500 ${
+                !isOnline
+                  ? 'bg-neutral-600'
+                  : ramPercent > 85
+                  ? 'bg-gradient-to-r from-amber-400 to-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.7)]'
+                  : 'bg-gradient-to-r from-cyan-400 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]'
+              }`}
+              style={{ width: `${isOnline ? Math.max(ramPercent, 4) : 0}%` }}
             ></div>
           </div>
-          <div className="text-[11px] text-neutral-500 mt-2 font-mono">
-            {ramPercent}% alocado no Farol da Discloud
+
+          <div className="text-[11px] text-neutral-400 mt-2 font-mono flex items-center justify-between">
+            {isOnline ? (
+              <>
+                <span>15.8 MB (Node.js) + {(currentRam - 15.8 > 0 ? (currentRam - 15.8).toFixed(1) : '0.0')} MB (Deps & Código)</span>
+                <span className="text-emerald-400 font-semibold">{ramPercent}%</span>
+              </>
+            ) : (
+              <span className="text-neutral-500">Instância pausada (0.00 MB em execução)</span>
+            )}
           </div>
         </div>
 

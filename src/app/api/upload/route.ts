@@ -26,6 +26,19 @@ export async function POST(req: NextRequest) {
     // Inspeciona o arquivo ZIP
     const zip = await JSZip.loadAsync(fileBuffer);
 
+    // Validação de cota descompactada (Prevenção de excesso de node_modules ou downloads)
+    let totalUncompressedBytes = 0;
+    zip.forEach((_, entry) => {
+      const uncomp = (entry as any)._data?.uncompressedSize || 0;
+      totalUncompressedBytes += uncomp;
+    });
+
+    if (totalUncompressedBytes > MAX_STORAGE_BYTES * 2) {
+      return NextResponse.json({
+        error: `O conteúdo descompactado do bot (${(totalUncompressedBytes / (1024 * 1024)).toFixed(2)} MB) excede o limite da cota. Remova dependências excessivas ou pastas pesadas.`,
+      }, { status: 413 });
+    }
+
     // Procura por aethel.config ou discloud.config
     let configContent: string | null = null;
     let configFilename = 'aethel.config';

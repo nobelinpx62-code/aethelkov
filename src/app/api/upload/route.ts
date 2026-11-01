@@ -96,6 +96,24 @@ export async function POST(req: NextRequest) {
         });
       }
 
+      // Se for Telegram, ativa imediatamente o webhook no Telegram
+      if (inspected.platform === 'TELEGRAM') {
+        const webhookUrl = `https://aethelkov.vercel.app/api/telegram?botId=${botId}`;
+        try {
+          const tgRes = await fetch(
+            `https://api.telegram.org/bot${inspected.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
+          );
+          const tgData = await tgRes.json();
+          await supabase.from('aethel_logs').insert({
+            bot_id: botId,
+            log_level: 'INFO',
+            message: `[Telegram Webhook] Webhook registrado com sucesso: ${JSON.stringify(tgData)}`,
+          });
+        } catch (tgErr: any) {
+          console.error('[Upload] Erro ao registrar webhook Telegram:', tgErr.message);
+        }
+      }
+
       // Registra log da auto-detecção
       await supabase.from('aethel_logs').insert({
         bot_id: botId,

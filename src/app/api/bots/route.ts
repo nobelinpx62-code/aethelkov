@@ -72,6 +72,16 @@ export async function POST(req: NextRequest) {
       });
     }
 
+    // Se for Telegram, registra automaticamente o Webhook no Telegram
+    if (platform === 'TELEGRAM' && botId) {
+      const webhookUrl = `https://aethelkov.vercel.app/api/telegram?botId=${botId}`;
+      try {
+        await fetch(
+          `https://api.telegram.org/bot${token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
+        );
+      } catch (_) {}
+    }
+
     return NextResponse.json({ success: true, bot: data });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
@@ -119,6 +129,22 @@ export async function PATCH(req: NextRequest) {
           event: 'KILL_BOT',
           payload: { botId },
         });
+      }
+    } else if (bot.platform === 'TELEGRAM') {
+      // Se for Telegram, ativa ou suspende o Webhook na API do Telegram
+      if (status === 'ONLINE') {
+        const webhookUrl = `https://aethelkov.vercel.app/api/telegram?botId=${botId}`;
+        try {
+          await fetch(
+            `https://api.telegram.org/bot${bot.token_encrypted}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
+          );
+        } catch (_) {}
+      } else {
+        try {
+          await fetch(
+            `https://api.telegram.org/bot${bot.token_encrypted}/deleteWebhook`
+          );
+        } catch (_) {}
       }
     }
 

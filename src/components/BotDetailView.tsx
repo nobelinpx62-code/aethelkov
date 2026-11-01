@@ -477,6 +477,30 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
 
               {/* Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
+                {bot.platform === 'TELEGRAM' && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const res = await fetch(`/api/telegram?botId=${bot.id}&action=setWebhook`);
+                        const data = await res.json();
+                        if (data.success) {
+                          alert('✅ Webhook do Telegram sincronizado com sucesso na malha!');
+                          onRefresh();
+                        } else {
+                          alert('Aviso: ' + JSON.stringify(data));
+                        }
+                      } catch (e: any) {
+                        alert('Erro ao sincronizar: ' + e.message);
+                      }
+                    }}
+                    className="apple-pill-btn rounded-full px-3.5 py-2 text-xs font-semibold text-cyan-300 bg-cyan-500/10 border border-cyan-500/30 hover:bg-cyan-500/20 flex items-center gap-1.5"
+                    title="Sincronizar Webhook Oficial com a API do Telegram"
+                  >
+                    <Send className="w-3.5 h-3.5" />
+                    <span>Sincronizar Webhook</span>
+                  </button>
+                )}
+
                 <button
                   onClick={() => onToggleStatus(bot.id, bot.status)}
                   className={`apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold flex items-center gap-2 ${

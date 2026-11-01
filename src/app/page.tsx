@@ -176,12 +176,13 @@ export default function DashboardPage() {
               onToggleBotStatus={handleToggleStatus}
             />
           ) : focusedBot ? (
-            /* Visualização Detalhada Estilo Discloud Pro */
+            /* Visualização Detalhada da Instância */
             <BotDetailView
               bot={focusedBot}
               onBack={() => setFocusedBotId(null)}
               onToggleStatus={handleToggleStatus}
               onRefresh={fetchBotsAndStats}
+              onDeleteBot={handleDeleteBot}
             />
           ) : (
             /* Visão Geral (Apple Liquid Dashboard) */

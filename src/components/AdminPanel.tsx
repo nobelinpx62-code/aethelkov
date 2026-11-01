@@ -22,11 +22,24 @@ import {
   Settings,
   Database,
   ExternalLink,
-  Power
+  Power,
+  Gift,
+  Sparkles,
+  Copy,
+  Check
 } from 'lucide-react';
 import { AethelBot } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { NodeDetailModal } from '@/components/NodeDetailModal';
+import { 
+  getPromoCodes, 
+  createPromoCode, 
+  deletePromoCode, 
+  getUserGifts, 
+  sendUserGift, 
+  PromoCode, 
+  UserGift 
+} from '@/lib/promoService';
 
 interface DiscloudAccount {
   id: string;
@@ -66,7 +79,101 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onToggleBotStatus,
 }) => {
   // Navegação por Abas no Painel Admin
-  const [activeTab, setActiveTab] = useState<'nodes' | 'instances' | 'generator' | 'discloud' | 'settings'>('nodes');
+  const [activeTab, setActiveTab] = useState<'nodes' | 'instances' | 'generator' | 'discloud' | 'promos' | 'settings'>('nodes');
+
+  // Estados de Promo Codes e Presentes de RAM
+  const [promoCodesList, setPromoCodesList] = useState<PromoCode[]>([]);
+  const [userGiftsList, setUserGiftsList] = useState<UserGift[]>([]);
+
+  // Formulário de Presente
+  const [giftRecipient, setGiftRecipient] = useState('');
+  const [giftRamMb, setGiftRamMb] = useState(50);
+  const [giftIsTemp, setGiftIsTemp] = useState(false);
+  const [giftDurationDays, setGiftDurationDays] = useState(30);
+  const [giftReason, setGiftReason] = useState('');
+  const [isSendingGift, setIsSendingGift] = useState(false);
+
+  // Formulário de Código Promocional
+  const [promoCodeInput, setPromoCodeInput] = useState('');
+  const [promoRamMb, setPromoRamMb] = useState(25);
+  const [promoIsTemp, setPromoIsTemp] = useState(true);
+  const [promoDurationDays, setPromoDurationDays] = useState(30);
+  const [promoMaxUses, setPromoMaxUses] = useState(50);
+  const [isCreatingPromo, setIsCreatingPromo] = useState(false);
+  const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
+
+  // Carrega listas de promos e presentes
+  useEffect(() => {
+    setPromoCodesList(getPromoCodes());
+    setUserGiftsList(getUserGifts());
+  }, []);
+
+  const handleCreatePromoSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!promoCodeInput.trim()) return;
+
+    try {
+      setIsCreatingPromo(true);
+      const created = createPromoCode({
+        code: promoCodeInput,
+        ram_mb: Number(promoRamMb) || 25,
+        is_temporary: promoIsTemp,
+        duration_days: promoIsTemp ? Number(promoDurationDays) || 30 : undefined,
+        max_uses: Number(promoMaxUses) || 50,
+      });
+
+      setPromoCodesList(getPromoCodes());
+      setPromoCodeInput('');
+      setAdminToast(`🎉 Código "${created.code}" (+${created.ram_mb} MB) criado com sucesso!`);
+      setTimeout(() => setAdminToast(null), 4000);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsCreatingPromo(false);
+    }
+  };
+
+  const handleDeletePromoAction = (id: string) => {
+    deletePromoCode(id);
+    setPromoCodesList(getPromoCodes());
+    setAdminToast('Código promocional excluído.');
+    setTimeout(() => setAdminToast(null), 3000);
+  };
+
+  const handleSendGiftSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!giftRecipient.trim() || !giftReason.trim()) {
+      alert('Informe o ID/E-mail do destinatário e o motivo do presente.');
+      return;
+    }
+
+    setIsSendingGift(true);
+    try {
+      const created = sendUserGift({
+        recipient: giftRecipient,
+        ram_mb: Number(giftRamMb) || 50,
+        is_temporary: giftIsTemp,
+        duration_days: giftIsTemp ? Number(giftDurationDays) || 30 : undefined,
+        reason: giftReason,
+      });
+
+      setUserGiftsList(getUserGifts());
+      setGiftRecipient('');
+      setGiftReason('');
+      setAdminToast(`🎁 Presente de +${created.ram_mb} MB enviado para ${created.recipient}! Aparecerá na tela do usuário.`);
+      setTimeout(() => setAdminToast(null), 5000);
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setIsSendingGift(false);
+    }
+  };
+
+  const copyPromoToClipboard = (code: string, id: string) => {
+    navigator.clipboard.writeText(code);
+    setCopiedCodeId(id);
+    setTimeout(() => setCopiedCodeId(null), 2000);
+  };
 
   // Contas da Discloud salvas no localStorage
   const [accounts, setAccounts] = useState<DiscloudAccount[]>([]);
@@ -555,6 +662,18 @@ setInterval(reportNodeHeartbeat, 15000);
         </button>
 
         <button
+          onClick={() => setActiveTab('promos')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'promos'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Gift className="w-3.5 h-3.5 text-pink-400" />
+          <span>Promos, Códigos & Presentes</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('settings')}
           className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
             activeTab === 'settings'
@@ -953,7 +1072,300 @@ setInterval(reportNodeHeartbeat, 15000);
         </section>
       )}
 
-      {/* CONTEÚDO DA ABA 5: CONFIGURAÇÕES & TELEMETRIA DO CLUSTER */}
+      {/* CONTEÚDO DA ABA 5: PROMOS, CÓDIGOS & PRESENTES DE RAM */}
+      {activeTab === 'promos' && (
+        <div className="space-y-6 animate-fadeIn font-mono text-xs">
+          {/* Header da Aba */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-pink-500/20 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3.5">
+              <div className="p-3 rounded-2xl bg-pink-500/15 border border-pink-500/30 text-pink-400 shrink-0">
+                <Gift className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-base font-bold text-white flex items-center gap-2">
+                  <span>Gerenciador de Promos & Presentes de RAM</span>
+                  <Sparkles className="w-4 h-4 text-pink-400" />
+                </h3>
+                <p className="text-xs text-neutral-400 mt-0.5">
+                  Conceda bônus de RAM para usuários específicos (por ID do Discord) ou gere cupons para a comunidade resgatar.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* BLOCO 1: DAR PRESENTE DIRETO A UM USUÁRIO */}
+            <section className="apple-glass-card rounded-[28px] p-6 border border-white/12 space-y-5 relative overflow-hidden">
+              <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+              
+              <div className="flex items-center gap-2.5 pb-4 border-b border-white/10">
+                <Gift className="w-5 h-5 text-emerald-400" />
+                <h4 className="text-sm font-bold text-white">Dar Presente de RAM Direto</h4>
+              </div>
+
+              <form onSubmit={handleSendGiftSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-neutral-300 text-xs mb-1">
+                    ID do Discord ou E-mail do Usuário
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={giftRecipient}
+                    onChange={(e) => setGiftRecipient(e.target.value)}
+                    placeholder="Ex: 1313535117792378891 ou usuario@email.com"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Quantidade de RAM (+MB)
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={5}
+                      max={1000}
+                      step={5}
+                      value={giftRamMb}
+                      onChange={(e) => setGiftRamMb(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Tipo de Validade
+                    </label>
+                    <select
+                      value={giftIsTemp ? 'temp' : 'perm'}
+                      onChange={(e) => setGiftIsTemp(e.target.value === 'temp')}
+                      className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+                    >
+                      <option value="perm">Sem Expiração (Permanente)</option>
+                      <option value="temp">Temporária (com validade)</option>
+                    </select>
+                  </div>
+                </div>
+
+                {giftIsTemp && (
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Duração da RAM Temporária (em dias)
+                    </label>
+                    <input
+                      type="number"
+                      min={1}
+                      max={365}
+                      value={giftDurationDays}
+                      onChange={(e) => setGiftDurationDays(Number(e.target.value))}
+                      placeholder="Ex: 30"
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
+                    />
+                  </div>
+                )}
+
+                <div>
+                  <label className="block text-neutral-300 text-xs mb-1">
+                    Motivo do Presente (Aparecerá na tela do usuário!)
+                  </label>
+                  <textarea
+                    required
+                    rows={2}
+                    value={giftReason}
+                    onChange={(e) => setGiftReason(e.target.value)}
+                    placeholder="Ex: Parabéns por vencer o evento! Você ganhou +50 MB de RAM de bônus."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400 resize-none"
+                  ></textarea>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isSendingGift}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 font-semibold text-white text-xs transition-all flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(16,185,129,0.3)] disabled:opacity-50"
+                >
+                  <Gift className="w-4 h-4" />
+                  <span>{isSendingGift ? 'Enviando...' : 'Enviar Presente de RAM ao Usuário'}</span>
+                </button>
+              </form>
+
+              {/* Histórico Recente de Presentes */}
+              <div className="pt-4 border-t border-white/10 space-y-2">
+                <span className="text-[11px] font-semibold text-neutral-400 uppercase block">
+                  Últimos Presentes Concedidos ({userGiftsList.length})
+                </span>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {userGiftsList.map((g) => (
+                    <div key={g.id} className="p-3 rounded-xl bg-black/40 border border-white/5 space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-white font-bold">+{g.ram_mb} MB ({g.is_temporary ? `${g.duration_days}d` : 'Permanente'})</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${g.claimed ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/30' : 'bg-amber-500/10 text-amber-400 border border-amber-500/30'}`}>
+                          {g.claimed ? 'Resgatado' : 'Aguardando Usuário'}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-neutral-300 truncate">Para: {g.recipient}</p>
+                      <p className="text-[10px] text-neutral-400 italic">&quot;{g.reason}&quot;</p>
+                    </div>
+                  ))}
+                  {userGiftsList.length === 0 && (
+                    <p className="text-neutral-500 text-xs py-2 text-center">Nenhum presente enviado ainda.</p>
+                  )}
+                </div>
+              </div>
+            </section>
+
+            {/* BLOCO 2: CRIAR CÓDIGOS PROMOCIONAIS (PROMO CODES) */}
+            <section className="apple-glass-card rounded-[28px] p-6 border border-white/12 space-y-5 relative overflow-hidden">
+              <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+
+              <div className="flex items-center gap-2.5 pb-4 border-b border-white/10">
+                <Sparkles className="w-5 h-5 text-pink-400" />
+                <h4 className="text-sm font-bold text-white">Criar Código Promocional</h4>
+              </div>
+
+              <form onSubmit={handleCreatePromoSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-neutral-300 text-xs mb-1">
+                    Código do Cupom
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={promoCodeInput}
+                    onChange={(e) => setPromoCodeInput(e.target.value.toUpperCase())}
+                    placeholder="Ex: AETHEL2026, RAMBOOST"
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white font-bold text-xs uppercase focus:outline-none focus:border-pink-400"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Bônus de RAM (+MB)
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={5}
+                      max={500}
+                      step={5}
+                      value={promoRamMb}
+                      onChange={(e) => setPromoRamMb(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-pink-400"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Limite de Resgates
+                    </label>
+                    <input
+                      type="number"
+                      required
+                      min={1}
+                      max={10000}
+                      value={promoMaxUses}
+                      onChange={(e) => setPromoMaxUses(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-pink-400"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Tipo de Validade
+                    </label>
+                    <select
+                      value={promoIsTemp ? 'temp' : 'perm'}
+                      onChange={(e) => setPromoIsTemp(e.target.value === 'temp')}
+                      className="w-full px-3 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-pink-400"
+                    >
+                      <option value="temp">Temporária (com validade)</option>
+                      <option value="perm">Sem Expiração (Permanente)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-neutral-300 text-xs mb-1">
+                      Duração (dias)
+                    </label>
+                    <input
+                      type="number"
+                      disabled={!promoIsTemp}
+                      min={1}
+                      max={365}
+                      value={promoDurationDays}
+                      onChange={(e) => setPromoDurationDays(Number(e.target.value))}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-pink-400 disabled:opacity-40"
+                    />
+                  </div>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isCreatingPromo}
+                  className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-pink-500 to-purple-500 hover:from-pink-600 hover:to-purple-600 font-semibold text-white text-xs transition-all flex items-center justify-center gap-2 shadow-[0_4px_16px_rgba(236,72,153,0.3)] disabled:opacity-50"
+                >
+                  <Sparkles className="w-4 h-4" />
+                  <span>{isCreatingPromo ? 'Criando...' : 'Gerar Código Promocional'}</span>
+                </button>
+              </form>
+
+              {/* Lista de Códigos Ativos */}
+              <div className="pt-4 border-t border-white/10 space-y-2">
+                <span className="text-[11px] font-semibold text-neutral-400 uppercase block">
+                  Códigos Ativos ({promoCodesList.length})
+                </span>
+                <div className="max-h-48 overflow-y-auto space-y-2 pr-1 custom-scrollbar">
+                  {promoCodesList.map((c) => (
+                    <div key={c.id} className="p-3 rounded-xl bg-black/40 border border-white/5 flex items-center justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-white font-bold tracking-wider">{c.code}</span>
+                          <span className="px-2 py-0.5 rounded-full bg-pink-500/10 text-pink-400 border border-pink-500/30 text-[10px]">
+                            +{c.ram_mb} MB ({c.is_temporary ? `${c.duration_days}d` : 'Perm'})
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-neutral-400 mt-0.5">
+                          Usos: <strong className="text-neutral-200">{c.current_uses}</strong> / {c.max_uses} resgatados
+                        </p>
+                      </div>
+
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          type="button"
+                          onClick={() => copyPromoToClipboard(c.code, c.id)}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300 hover:text-white"
+                          title="Copiar código"
+                        >
+                          {copiedCodeId === c.id ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDeletePromoAction(c.id)}
+                          className="p-1.5 rounded-lg bg-white/5 hover:bg-rose-500/20 text-neutral-400 hover:text-rose-400"
+                          title="Excluir código"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                  {promoCodesList.length === 0 && (
+                    <p className="text-neutral-500 text-xs py-2 text-center">Nenhum código ativo criado.</p>
+                  )}
+                </div>
+              </div>
+            </section>
+          </div>
+        </div>
+      )}
+
+      {/* CONTEÚDO DA ABA 6: CONFIGURAÇÕES & TELEMETRIA DO CLUSTER */}
       {activeTab === 'settings' && (
         <section className="apple-glass-card rounded-[28px] p-6 border border-white/10 space-y-4 animate-fadeIn font-mono text-xs">
           <div className="flex items-center gap-3">

@@ -7,10 +7,11 @@ import { ClusterStats, AethelBot } from '@/lib/types';
 interface MetricsBannerProps {
   stats: ClusterStats;
   bots?: AethelBot[];
+  extraRamMb?: number;
 }
 
-export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [] }) => {
-  const quotaMb = 100;
+export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [], extraRamMb = 0 }) => {
+  const quotaMb = 100 + extraRamMb;
   const activeBots = bots.filter((b) => b.status === 'ONLINE');
   const allocatedRam = activeBots.reduce((sum, b) => sum + (b.ram_limit_mb || 100), 0);
   const usedRamMb = Math.min(allocatedRam, quotaMb);
@@ -22,7 +23,7 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [] }
       {/* Bloco 1: Processos Ativos */}
       <div className="apple-glass-card relative overflow-hidden rounded-[28px] p-6 border border-white/12 flex flex-col justify-between transition-all duration-300 hover:border-white/25">
         <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
-        
+
         {/* Cabeçalho do Bloco */}
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
@@ -55,19 +56,17 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [] }
       </div>
 
       {/* Bloco 2: Cota de Memória (100 MB Estrito) */}
-      <div className={`apple-glass-card relative overflow-hidden rounded-[28px] p-6 border flex flex-col justify-between transition-all duration-300 ${
-        isAtLimit ? 'border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.15)]' : 'border-white/12 hover:border-white/25'
-      }`}>
+      <div className={`apple-glass-card relative overflow-hidden rounded-[28px] p-6 border flex flex-col justify-between transition-all duration-300 ${isAtLimit ? 'border-rose-500/30 shadow-[0_0_20px_rgba(244,63,94,0.15)]' : 'border-white/12 hover:border-white/25'
+        }`}>
         <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
-        
+
         {/* Cabeçalho do Bloco */}
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">
-            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] ${
-              isAtLimit 
-                ? 'bg-rose-500/15 border-rose-500/30 text-rose-300' 
+            <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border shadow-[inset_0_1px_1px_rgba(255,255,255,0.2)] ${isAtLimit
+                ? 'bg-rose-500/15 border-rose-500/30 text-rose-300'
                 : 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300'
-            }`}>
+              }`}>
               <HardDrive className="h-4 w-4" />
             </div>
             <span className="font-mono text-xs font-semibold text-neutral-300 uppercase tracking-wider">
@@ -75,16 +74,14 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [] }
             </span>
           </div>
 
-          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-medium shrink-0 ${
-            isAtLimit 
-              ? 'bg-rose-500/15 border border-rose-500/30 text-rose-300' 
-              : usagePercent > 0 
+          <div className={`flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-mono font-medium shrink-0 ${isAtLimit
+              ? 'bg-rose-500/15 border border-rose-500/30 text-rose-300'
+              : usagePercent > 0
                 ? 'bg-emerald-500/10 border border-emerald-500/30 text-emerald-400'
                 : 'bg-white/5 border border-white/10 text-neutral-400'
-          }`}>
-            <span className={`h-1.5 w-1.5 rounded-full ${
-              isAtLimit ? 'bg-rose-400 shadow-[0_0_8px_#f43f5e] animate-pulse' : 'bg-emerald-400'
-            }`}></span>
+            }`}>
+            <span className={`h-1.5 w-1.5 rounded-full ${isAtLimit ? 'bg-rose-400 shadow-[0_0_8px_#f43f5e] animate-pulse' : 'bg-emerald-400'
+              }`}></span>
             <span>{isAtLimit ? '100% Cota' : `${usagePercent}% em uso`}</span>
           </div>
         </div>
@@ -95,17 +92,16 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [] }
             <span>{usedRamMb} MB</span>
             <span className="text-base md:text-lg font-normal text-neutral-500 ml-2">/ {quotaMb} MB</span>
           </div>
-          
+
           {/* Barra de Progresso da Cota */}
           <div className="w-full h-2 bg-black/50 rounded-full overflow-hidden mt-3 p-0.5 border border-white/10">
             <div
-              className={`h-full rounded-full transition-all duration-700 ${
-                isAtLimit
+              className={`h-full rounded-full transition-all duration-700 ${isAtLimit
                   ? 'bg-gradient-to-r from-amber-400 to-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.7)]'
                   : usagePercent > 70
-                  ? 'bg-gradient-to-r from-cyan-400 to-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]'
-                  : 'bg-gradient-to-r from-cyan-400 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]'
-              }`}
+                    ? 'bg-gradient-to-r from-cyan-400 to-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]'
+                    : 'bg-gradient-to-r from-cyan-400 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]'
+                }`}
               style={{ width: `${Math.max(usagePercent, activeBots.length > 0 ? 6 : 0)}%` }}
             ></div>
           </div>
@@ -122,7 +118,7 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [] }
       {/* Bloco 3: Loop de Eventos & Gateway */}
       <div className="apple-glass-card relative overflow-hidden rounded-[28px] p-6 border border-white/12 flex flex-col justify-between transition-all duration-300 hover:border-white/25">
         <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
-        
+
         {/* Cabeçalho do Bloco */}
         <div className="flex items-center justify-between gap-3 mb-4">
           <div className="flex items-center gap-2.5">

@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { Navbar } from '@/components/Navbar';
+import { Navbar, isUserMasterAdmin } from '@/components/Navbar';
 import { MetricsBanner } from '@/components/MetricsBanner';
 import { BotGrid } from '@/components/BotGrid';
 import { DeployModal } from '@/components/DeployModal';
@@ -9,9 +9,15 @@ import { BotDetailView } from '@/components/BotDetailView';
 import { AdminAuthModal } from '@/components/AdminAuthModal';
 import { AdminPanel } from '@/components/AdminPanel';
 import { AuthLandingView } from '@/components/AuthLandingView';
+import { GiftCelebrationModal } from '@/components/GiftCelebrationModal';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { 
+  findPendingGiftsForUser, 
+  getUserBonusData, 
+  UserGift 
+} from '@/lib/promoService';
 
 export default function DashboardPage() {
   const [bots, setBots] = useState<AethelBot[]>([]);
@@ -27,6 +33,7 @@ export default function DashboardPage() {
 
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
+  const focusedBot = bots.find((b) => b.id === focusedBotId) || null;
   const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances'>('overview');
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -35,11 +42,25 @@ export default function DashboardPage() {
   // Estados de Autenticação Supabase (Discord OAuth & E-mail)
   const [currentUser, setCurrentUser] = useState<any>(null);
   const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
-  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
 
-  // Estados do Modo Admin Secreto
+  // Estados do Modo Admin
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+
+  // Estados de Presentes & Promo Codes de RAM
+  const [extraRamMb, setExtraRamMb] = useState<number>(0);
+  const [pendingGift, setPendingGift] = useState<UserGift | null>(null);
+  const [isRedeemModalOpen, setIsRedeemModalOpen] = useState<boolean>(false);
+
+  const getUserKey = (user: any): string => {
+    if (!user) return 'guest';
+    return (
+      user.user_metadata?.provider_id ||
+      user.user_metadata?.sub ||
+      user.email ||
+      user.id
+    );
+  };
 
   // Listener de Autenticação em Tempo Real
   useEffect(() => {
@@ -50,24 +71,49 @@ export default function DashboardPage() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setCurrentUser(session?.user ?? null);
-      if (session?.user) {
-        setIsDemoMode(false);
-      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
+  // Monitora e carrega bônus e presentes do usuário logado
+  useEffect(() => {
+    if (!currentUser) {
+      setExtraRamMb(0);
+      setPendingGift(null);
+      return;
+    }
+
+    const key = getUserKey(currentUser);
+    const bonus = getUserBonusData(key);
+    setExtraRamMb(bonus.extra_ram_mb || 0);
+
+    // Identificadores possíveis do usuário (Discord ID, sub, email, id)
+    const identifiers = [
+      currentUser.user_metadata?.provider_id,
+      currentUser.user_metadata?.sub,
+      currentUser.email,
+      currentUser.id,
+    ].filter(Boolean) as string[];
+
+    const pending = findPendingGiftsForUser(identifiers);
+    if (pending.length > 0) {
+      setPendingGift(pending[0]);
+    }
+  }, [currentUser]);
+
   const handleSignOut = async () => {
     await supabase.auth.signOut();
     setCurrentUser(null);
-    setIsDemoMode(false);
+    setIsAdminPanelOpen(false);
+    setFocusedBotId(null);
     setNotification('Você desconectou da sua conta Aethel.');
     setTimeout(() => setNotification(null), 4000);
   };
 
   const handleTriggerAdmin = () => {
-    if (typeof window !== 'undefined' && sessionStorage.getItem('aethel_admin_auth') === 'true') {
+    // Se for o dono 1313535117792378891, abre direto!
+    if (isUserMasterAdmin(currentUser)) {
       setIsAdminPanelOpen(true);
     } else {
       setIsAdminAuthModalOpen(true);
@@ -130,44 +176,58 @@ export default function DashboardPage() {
       const res = await fetch(`/api/bots?id=${botId}`, { method: 'DELETE' });
       if (res.ok) {
         setBots((prev) => prev.filter((b) => b.id !== botId));
-        if (selectedBotId === botId) {
-          setSelectedBotId(null);
-        }
-        if (focusedBotId === botId) {
-          setFocusedBotId(null);
-        }
-        setNotification(`🗑️ Instância "${botName}" apagada com sucesso!`);
-        setTimeout(() => setNotification(null), 5000);
+        if (focusedBotId === botId) setFocusedBotId(null);
         fetchBotsAndStats();
+        setNotification(`Instância "${botName}" apagada com sucesso.`);
+        setTimeout(() => setNotification(null), 4000);
       }
     } catch (err) {
-      console.error('Erro ao excluir:', err);
+      console.error('Erro ao deletar bot:', err);
     }
   };
 
   const handleSetupTelegram = async (botId: string) => {
     try {
-      const res = await fetch(`/api/telegram?botId=${botId}&action=setWebhook`);
+      const res = await fetch('/api/telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ botId }),
+      });
       const data = await res.json();
-      if (data.success) {
-        setNotification('✅ Webhook do Telegram registrado com sucesso na Vercel!');
-        setTimeout(() => setNotification(null), 5000);
+      if (res.ok) {
+        alert('Webhook do Telegram registrado com sucesso!');
+        fetchBotsAndStats();
       } else {
-        alert('Falha ao configurar Telegram: ' + JSON.stringify(data));
+        alert('Erro: ' + data.error);
       }
     } catch (err: any) {
-      alert('Erro: ' + err.message);
+      alert('Falha ao configurar webhook: ' + err.message);
     }
   };
 
-  const selectedBot = bots.find((b) => b.id === selectedBotId) || (bots.length > 0 ? bots[0] : null);
-  const focusedBot = bots.find((b) => b.id === focusedBotId);
-  const totalStorageBytes = bots.reduce((acc, curr) => acc + (curr.storage_size_bytes || 0), 0);
+  // Resgate de Presente Concluído
+  const handleGiftClaimed = (gift: UserGift) => {
+    setPendingGift(null);
+    const key = getUserKey(currentUser);
+    const bonus = getUserBonusData(key);
+    setExtraRamMb(bonus.extra_ram_mb);
+    setNotification(`🎁 Presente ativado! Você recebeu +${gift.ram_mb} MB de RAM extra na sua cota!`);
+    setTimeout(() => setNotification(null), 6000);
+  };
+
+  // Resgate de Código Promocional Concluído
+  const handleCodeRedeemed = (ramMb: number, msg: string) => {
+    const key = getUserKey(currentUser);
+    const bonus = getUserBonusData(key);
+    setExtraRamMb(bonus.extra_ram_mb);
+    setNotification(msg);
+    setTimeout(() => setNotification(null), 6000);
+  };
 
   return (
-    <div className="min-h-screen flex flex-col relative selection:bg-white/20 selection:text-white">
-      {/* Motor de Iluminação Óptica Estática (Zero GPU Bottleneck / Zero Lag) */}
-      <div className="ambient-light-layer">
+    <div className="relative min-h-screen w-full overflow-hidden bg-[#07080a] text-neutral-100 antialiased selection:bg-cyan-500/30 selection:text-cyan-200">
+      {/* Luzes Dinâmicas de Fundo Apple Liquid Material */}
+      <div className="pointer-events-none fixed inset-0 z-0 overflow-hidden">
         <div className="light-cyan"></div>
         <div className="light-indigo"></div>
         <div className="light-emerald"></div>
@@ -188,22 +248,24 @@ export default function DashboardPage() {
           }}
           currentUser={currentUser}
           onSignOut={handleSignOut}
-          onOpenAuth={() => setIsDemoMode(false)}
+          onOpenPromoModal={() => setIsRedeemModalOpen(true)}
         />
 
-        {!currentUser && !isDemoMode ? (
-          /* Página Inicial / Conhecer a Aethel & Login Dividido (Carrossel + Auth) */
+        {!currentUser ? (
+          /* =========================================================================
+              PÁGINA INICIAL / APRESENTAÇÃO COMPLETA DA PLATAFORMA & LOGIN EXCLUSIVO
+             ========================================================================= */
           <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-4 pb-16 animate-fadeIn">
             <AuthLandingView
-              onBypassToDemo={() => setIsDemoMode(true)}
               onLoginSuccess={() => {
-                setIsDemoMode(false);
                 fetchBotsAndStats();
               }}
             />
           </main>
         ) : (
-          /* Container Central da Dashboard */
+          /* =========================================================================
+              PAINEL OPERACIONAL LIQUID GLASS (VISÍVEL APENAS QUANDO AUTENTICADO)
+             ========================================================================= */
           <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-8 pb-20 animate-fadeIn">
             {/* Notificação Temporária */}
             {notification && (
@@ -256,10 +318,10 @@ export default function DashboardPage() {
                   </div>
                 </section>
 
-                {/* Cartões de Telemetria e Alocação */}
+                {/* Cartões de Telemetria e Alocação (com Cota + Bônus de Presente) */}
                 {activeNavTab === 'overview' && (
                   <section className="w-full">
-                    <MetricsBanner stats={stats} bots={bots} />
+                    <MetricsBanner stats={stats} bots={bots} extraRamMb={extraRamMb} />
                   </section>
                 )}
 
@@ -280,6 +342,16 @@ export default function DashboardPage() {
           </main>
         )}
 
+        {/* Modal de Presentes Recebidos & Resgate de Cupons */}
+        <GiftCelebrationModal
+          pendingGift={pendingGift}
+          isOpenRedeemModal={isRedeemModalOpen}
+          userKey={getUserKey(currentUser)}
+          onCloseRedeemModal={() => setIsRedeemModalOpen(false)}
+          onGiftClaimed={handleGiftClaimed}
+          onCodeRedeemed={handleCodeRedeemed}
+        />
+
         {/* Deploy Modal */}
         <DeployModal
           isOpen={isDeployOpen}
@@ -291,7 +363,7 @@ export default function DashboardPage() {
           }}
         />
 
-        {/* Modal Secreto de Autenticação Admin */}
+        {/* Modal de Autenticação Admin para Casos Alternativos */}
         <AdminAuthModal
           isOpen={isAdminAuthModalOpen}
           onClose={() => setIsAdminAuthModalOpen(false)}

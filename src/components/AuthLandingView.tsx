@@ -16,13 +16,18 @@ import {
   ArrowRight,
   CheckCircle2,
   AlertCircle,
-  ExternalLink,
-  Bot
+  Terminal,
+  Activity,
+  FileCode,
+  FolderGit2,
+  Cpu,
+  Layers,
+  Clock,
+  Check
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
 interface AuthLandingViewProps {
-  onBypassToDemo?: () => void;
   onLoginSuccess?: () => void;
 }
 
@@ -33,7 +38,6 @@ const DiscordIcon = () => (
 );
 
 export const AuthLandingView: React.FC<AuthLandingViewProps> = ({ 
-  onBypassToDemo,
   onLoginSuccess 
 }) => {
   // Estado do Carrossel do Lado Esquerdo
@@ -52,7 +56,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
-  // Slides Informativos e Chamativos
+  // Slides Informativos e Chamativos do Carrossel
   const slides = [
     {
       badge: 'Deploy Relâmpago',
@@ -207,7 +211,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
 
         if (error) throw error;
 
-        setSuccessMessage('Login efetuado com sucesso! Entrando...');
+        setSuccessMessage('Login efetuado com sucesso! Entrando no painel...');
         setTimeout(() => {
           if (onLoginSuccess) onLoginSuccess();
         }, 800);
@@ -228,22 +232,20 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
   };
 
   return (
-    <div className="min-h-[85vh] w-full flex flex-col justify-center py-6 px-2 sm:px-4">
-      {/* Grade Principal Dividida (Lado Esquerdo Carrossel / Lado Direito Auth) */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center max-w-6xl mx-auto w-full">
+    <div className="w-full space-y-16 py-6 px-2 sm:px-4">
+      {/* =========================================================================
+          SEÇÃO 1: HERO SPLIT-SCREEN (CARROSSEL DINÂMICO + CARD DE AUTH EXCLUSIVO)
+         ========================================================================= */}
+      <section className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center max-w-6xl mx-auto w-full">
         
-        {/* ========================================================
-            LADO ESQUERDO: CARROSSEL DE APRESENTAÇÃO & CURIOSIDADES
-           ======================================================== */}
+        {/* LADO ESQUERDO: CARROSSEL DE APRESENTAÇÃO */}
         <div 
-          className="lg:col-span-7 apple-glass-card rounded-[36px] p-6 sm:p-9 border border-white/15 relative overflow-hidden flex flex-col justify-between min-h-[480px] sm:min-h-[540px] shadow-[0_30px_70px_rgba(0,0,0,0.7)]"
+          className="lg:col-span-7 apple-glass-card rounded-[36px] p-6 sm:p-9 border border-white/15 relative overflow-hidden flex flex-col justify-between min-h-[500px] sm:min-h-[560px] shadow-[0_30px_70px_rgba(0,0,0,0.7)]"
           onMouseEnter={() => setIsPaused(true)}
           onMouseLeave={() => setIsPaused(false)}
         >
-          {/* Efeito de Vidro Refletivo Apple */}
           <div className="glass-specular pointer-events-none absolute inset-x-12 top-0 h-[1.5px]"></div>
           
-          {/* Gradiente de Fundo Dinâmico conforme o Slide */}
           <div className={`absolute inset-0 bg-gradient-to-br ${slides[currentSlide].accentGradient} opacity-60 pointer-events-none transition-all duration-700`}></div>
 
           {/* Cabeçalho do Carrossel */}
@@ -259,7 +261,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
               </div>
             </div>
 
-            {/* Controles de Navegação Anterior / Próximo */}
+            {/* Controles de Navegação */}
             <div className="flex items-center gap-1.5 bg-black/40 p-1 rounded-full border border-white/10 backdrop-blur-md">
               <button
                 onClick={handlePrevSlide}
@@ -278,7 +280,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
             </div>
           </div>
 
-          {/* Conteúdo Central do Slide */}
+          {/* Conteúdo Central */}
           <div className="relative z-10 my-8 space-y-4">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold tracking-tight text-white leading-tight">
               {slides[currentSlide].title}
@@ -287,7 +289,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
               {slides[currentSlide].description}
             </p>
 
-            {/* Métricas / Curiosidades em Pílulas */}
             <div className="grid grid-cols-2 gap-3 pt-3">
               {slides[currentSlide].metrics.map((metric, idx) => (
                 <div key={idx} className="apple-glass rounded-2xl p-3 sm:p-4 border border-white/10">
@@ -302,7 +303,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
             </div>
           </div>
 
-          {/* Rodapé com Indicadores (Dots de Progresso) */}
+          {/* Rodapé do Carrossel com Indicadores */}
           <div className="relative z-10 pt-4 border-t border-white/10 flex items-center justify-between">
             <div className="flex items-center gap-2">
               {slides.map((_, index) => (
@@ -314,7 +315,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                       ? 'w-8 bg-emerald-400 shadow-[0_0_8px_#34d399]' 
                       : 'w-2 bg-white/20 hover:bg-white/40'
                   }`}
-                  title={`Ir para destaque ${index + 1}`}
+                  title={`Slide ${index + 1}`}
                 />
               ))}
             </div>
@@ -325,14 +326,12 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
           </div>
         </div>
 
-        {/* ========================================================
-            LADO DIREITO: CARD DE LOGIN & CRIAÇÃO DE CONTA
-           ======================================================== */}
+        {/* LADO DIREITO: CARD DE LOGIN & CADASTRO (SEM BOTÕES EXTRAS OU DEMO) */}
         <div className="lg:col-span-5 apple-glass-card rounded-[36px] p-6 sm:p-8 border border-white/15 relative overflow-hidden shadow-[0_30px_70px_rgba(0,0,0,0.7)] flex flex-col justify-between">
           <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1.5px]"></div>
 
           <div className="space-y-6">
-            {/* Cabeçalho do Card */}
+            {/* Cabeçalho */}
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="font-mono text-xs font-semibold text-emerald-400 uppercase tracking-widest flex items-center gap-1.5">
@@ -340,7 +339,7 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                   Aethel Auth
                 </span>
 
-                {/* Alternador Entrar / Criar Conta em Pílula */}
+                {/* Alternador Entrar / Criar Conta */}
                 <div className="flex rounded-full bg-black/40 p-1 border border-white/10 font-mono text-xs">
                   <button
                     onClick={() => {
@@ -374,16 +373,16 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
               </div>
 
               <h3 className="text-xl sm:text-2xl font-bold tracking-tight text-white">
-                {authMode === 'login' ? 'Acesse o Painel' : 'Crie sua Conta Grátis'}
+                {authMode === 'login' ? 'Acesse sua Conta' : 'Crie sua Conta Grátis'}
               </h3>
               <p className="text-xs text-neutral-400 mt-1">
                 {authMode === 'login' 
-                  ? 'Conecte-se para gerenciar suas instâncias e telemetria.' 
+                  ? 'Entre para gerenciar seus bots, console e telemetria.' 
                   : 'Ganhe 100 MB de cota e hospede seus bots 24/7 em instantes.'}
               </p>
             </div>
 
-            {/* BOTÃO PRINCIPAL: LOGIN COM DISCORD (OAUTH2) */}
+            {/* BOTÃO PRINCIPAL: LOGIN COM DISCORD */}
             <div>
               <button
                 type="button"
@@ -397,11 +396,11 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                 </span>
               </button>
               <p className="font-mono text-[10px] text-neutral-400 text-center mt-1.5">
-                Login direto e seguro via OAuth2 oficial do Discord
+                Autenticação com 1 clique oficial do Discord
               </p>
             </div>
 
-            {/* Separador Estilizado */}
+            {/* Separador */}
             <div className="relative flex items-center justify-center">
               <div className="absolute inset-0 flex items-center">
                 <div className="w-full border-t border-white/10"></div>
@@ -413,7 +412,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
 
             {/* FORMULÁRIO DE E-MAIL E SENHA */}
             <form onSubmit={handleEmailAuth} className="space-y-3.5">
-              {/* Campo E-mail */}
               <div>
                 <label className="block font-mono text-[11px] text-neutral-300 mb-1">
                   Endereço de E-mail
@@ -433,7 +431,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                 </div>
               </div>
 
-              {/* Campo Senha */}
               <div>
                 <label className="block font-mono text-[11px] text-neutral-300 mb-1">
                   Senha {authMode === 'signup' && <span className="text-neutral-500">(mínimo 6 caracteres)</span>}
@@ -460,7 +457,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                 </div>
               </div>
 
-              {/* Campo Confirmar Senha (apenas em Cadastro) */}
               {authMode === 'signup' && (
                 <div>
                   <label className="block font-mono text-[11px] text-neutral-300 mb-1">
@@ -493,7 +489,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                 </div>
               )}
 
-              {/* Mensagem de Erro */}
               {errorMessage && (
                 <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-start gap-2 animate-fadeIn">
                   <AlertCircle className="w-4 h-4 shrink-0 mt-0.5 text-rose-400" />
@@ -501,7 +496,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                 </div>
               )}
 
-              {/* Mensagem de Sucesso */}
               {successMessage && (
                 <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-mono flex items-start gap-2 animate-fadeIn">
                   <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5 text-emerald-400" />
@@ -509,7 +503,6 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
                 </div>
               )}
 
-              {/* Botão de Envio do Formulário */}
               <button
                 type="submit"
                 disabled={loading}
@@ -526,22 +519,211 @@ export const AuthLandingView: React.FC<AuthLandingViewProps> = ({
               </button>
             </form>
           </div>
-
-          {/* Atalho Opcional para Demonstração / Explorar sem Login */}
-          {onBypassToDemo && (
-            <div className="pt-4 mt-4 border-t border-white/10 text-center">
-              <button
-                type="button"
-                onClick={onBypassToDemo}
-                className="font-mono text-xs text-neutral-400 hover:text-cyan-300 transition-colors inline-flex items-center gap-1.5"
-              >
-                <span>Deseja apenas testar o painel?</span>
-                <span className="underline font-semibold text-neutral-200">Explorar Modo Demo</span>
-              </button>
-            </div>
-          )}
         </div>
-      </div>
+      </section>
+
+      {/* =========================================================================
+          SEÇÃO 2: COMO FUNCIONA O DEPLOY (SEU BOT ONLINE EM 3 PASSOS RÁPIDOS)
+         ========================================================================= */}
+      <section className="max-w-6xl mx-auto w-full space-y-8">
+        <div className="text-center space-y-2 max-w-2xl mx-auto">
+          <span className="font-mono text-xs font-semibold text-cyan-400 uppercase tracking-widest px-3 py-1 rounded-full bg-cyan-500/10 border border-cyan-500/30">
+            Fluxo Operacional
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Seu bot ligado em 3 passos simples
+          </h2>
+          <p className="text-sm text-neutral-400">
+            Esqueça configurações complicadas de servidor, SSH ou terminais remotos. Aqui o deploy acontece com 1 clique.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          {/* Passo 1 */}
+          <div className="apple-glass-card rounded-[30px] p-6 sm:p-7 border border-white/12 relative overflow-hidden flex flex-col justify-between">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                  <span className="font-mono font-bold text-lg">01</span>
+                </div>
+                <span className="font-mono text-[10px] text-neutral-400 uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
+                  Instantâneo
+                </span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Conecte sua Conta</h3>
+              <p className="text-xs text-neutral-400 leading-relaxed font-sans">
+                Faça login pelo Discord ou E-mail com segurança. Sua cota inicial de 100 MB de RAM gratuita é ativada imediatamente no seu perfil.
+              </p>
+            </div>
+            <div className="pt-4 mt-6 border-t border-white/5 font-mono text-[11px] text-emerald-400 flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
+              <span>Sem cartão de crédito necessário</span>
+            </div>
+          </div>
+
+          {/* Passo 2 */}
+          <div className="apple-glass-card rounded-[30px] p-6 sm:p-7 border border-white/12 relative overflow-hidden flex flex-col justify-between">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
+                  <span className="font-mono font-bold text-lg">02</span>
+                </div>
+                <span className="font-mono text-[10px] text-neutral-400 uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
+                  Arrastar & Soltar
+                </span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Upload do ZIP ou Config</h3>
+              <p className="text-xs text-neutral-400 leading-relaxed font-sans">
+                Envie o código fonte do seu bot em arquivo .zip com seu <strong className="text-neutral-200">aethel.config</strong>. Suporta Discord.js, Telegram e automações Node.js.
+              </p>
+            </div>
+            <div className="pt-4 mt-6 border-t border-white/5 font-mono text-[11px] text-indigo-400 flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
+              <span>Compatibilidade total retroativa</span>
+            </div>
+          </div>
+
+          {/* Passo 3 */}
+          <div className="apple-glass-card rounded-[30px] p-6 sm:p-7 border border-white/12 relative overflow-hidden flex flex-col justify-between">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div>
+              <div className="flex items-center justify-between mb-5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                  <span className="font-mono font-bold text-lg">03</span>
+                </div>
+                <span className="font-mono text-[10px] text-neutral-400 uppercase px-2.5 py-1 rounded-full bg-white/5 border border-white/10">
+                  &lt; 2 Segundos
+                </span>
+              </div>
+              <h3 className="text-xl font-bold text-white mb-2">Online 24/7 na Malha</h3>
+              <p className="text-xs text-neutral-400 leading-relaxed font-sans">
+                O Runner Core conecta sua aplicação aos servidores do Discord na hora. Acompanhe logs ao vivo, telemetria em tempo real e console interativo.
+              </p>
+            </div>
+            <div className="pt-4 mt-6 border-t border-white/5 font-mono text-[11px] text-emerald-400 flex items-center gap-1.5">
+              <Check className="w-3.5 h-3.5" />
+              <span>Auto-restart e heartbeat contínuo</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          SEÇÃO 3: RECURSOS PROFISSIONAIS (GRADE APPLE LIQUID GLASS)
+         ========================================================================= */}
+      <section className="max-w-6xl mx-auto w-full space-y-8">
+        <div className="text-center space-y-2 max-w-2xl mx-auto">
+          <span className="font-mono text-xs font-semibold text-emerald-400 uppercase tracking-widest px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30">
+            Diferenciais Exclusivos
+          </span>
+          <h2 className="text-3xl sm:text-4xl font-bold tracking-tight text-white">
+            Tudo o que sua aplicação precisa
+          </h2>
+          <p className="text-sm text-neutral-400">
+            Construído de desenvolvedores para desenvolvedores com o mais alto padrão de engenharia.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {/* Card 1: Console */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-white/12 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-cyan-500/15 border border-cyan-500/30 text-cyan-300">
+                <Terminal className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-white text-base">Console Interativo</h4>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Envie instruções, teste comandos e depure seu bot diretamente pelo terminal web integrado com resposta imediata.
+            </p>
+          </div>
+
+          {/* Card 2: Logs */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-white/12 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300">
+                <Activity className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-white text-base">Streaming de Logs</h4>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Console ao vivo com busca de texto, filtros por nível de log (Gateway, Dispatch, Erros) e exportação em arquivo .log com um clique.
+            </p>
+          </div>
+
+          {/* Card 3: Velocidade */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-white/12 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-indigo-500/15 border border-indigo-500/30 text-indigo-300">
+                <TrendingUp className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-white text-base">Latência &lt; 20ms</h4>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Runner Core desacoplado executando em servidores de alta frequência AMD Epyc para garantir tempo de resposta quase instantâneo.
+            </p>
+          </div>
+
+          {/* Card 4: Arquivos */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-white/12 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-amber-500/15 border border-amber-500/30 text-amber-300">
+                <FolderGit2 className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-white text-base">Explorador de Arquivos</h4>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Visualize seus scripts (index.js, aethel.config, package.json), gerencie variáveis de ambiente secretas e faça novos commits.
+            </p>
+          </div>
+
+          {/* Card 5: Cota e RAM Real */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-white/12 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-purple-500/15 border border-purple-500/30 text-purple-300">
+                <HardDrive className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-white text-base">Telemetria Real de RAM</h4>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Acompanhamento de consumo em tempo real com barra líquida percentual, proteção contra estouro de memória e 100 MB dedicados.
+            </p>
+          </div>
+
+          {/* Card 6: Backups */}
+          <div className="apple-glass-card rounded-[28px] p-6 border border-white/12 relative overflow-hidden">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 rounded-2xl bg-pink-500/15 border border-pink-500/30 text-pink-300">
+                <Layers className="w-5 h-5" />
+              </div>
+              <h4 className="font-bold text-white text-base">Backups & Snapshots</h4>
+            </div>
+            <p className="text-xs text-neutral-400 leading-relaxed">
+              Baixe a qualquer momento o snapshot do código-fonte do seu bot e seu aethel.config para manter a segurança total do seu projeto.
+            </p>
+          </div>
+        </div>
+      </section>
+
+      {/* =========================================================================
+          SEÇÃO 4: FOOTER DE APRESENTAÇÃO
+         ========================================================================= */}
+      <footer className="max-w-6xl mx-auto w-full pt-10 border-t border-white/10 text-center space-y-3 font-mono text-xs text-neutral-400">
+        <p className="text-neutral-300">
+          Aethel Kov &bull; Plataforma de Hospedagem Contínua de Alta Performance
+        </p>
+        <p className="text-[11px] text-neutral-500">
+          Deploy instantâneo &bull; 24/7 Uptime &bull; Loop de Eventos Assíncrono &bull; Cota Gratuita
+        </p>
+      </footer>
     </div>
   );
 };

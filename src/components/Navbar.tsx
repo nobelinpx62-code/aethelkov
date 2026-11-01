@@ -22,8 +22,8 @@ interface NavbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onTriggerAdmin: () => void;
-  activeNavTab: 'overview' | 'instances' | 'subdomains';
-  onSelectNavTab: (tab: 'overview' | 'instances' | 'subdomains') => void;
+  activeNavTab: 'overview' | 'instances';
+  onSelectNavTab: (tab: 'overview' | 'instances') => void;
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
@@ -117,16 +117,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               >
                 Instâncias
               </button>
-              <button
-                onClick={() => onSelectNavTab('subdomains')}
-                className={`rounded-full px-4 py-1.5 font-medium transition-all ${
-                  activeNavTab === 'subdomains'
-                    ? 'text-cyan-300 bg-cyan-500/15 border border-cyan-400/40 shadow-[0_0_12px_rgba(34,211,238,0.2)]'
-                    : 'text-neutral-400 hover:text-white'
-                }`}
-              >
-                Subdomínios (512 MB)
-              </button>
             </div>
 
             {/* Ações Rápidas, Admin, Presentes & Botão Novo Deploy */}
@@ -136,7 +126,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 type="button"
                 onClick={() => setIsDrawerOpen(true)}
                 className="apple-pill-btn flex h-9 w-9 items-center justify-center rounded-full text-white hover:text-cyan-300 hover:bg-white/10 border border-white/15 transition-all shadow-sm active:scale-95"
-                title="Abrir Menu de Opções e Subdomínios"
+                title="Menu Operacional"
               >
                 <Menu className="h-4 w-4 text-white" />
               </button>
@@ -302,18 +292,6 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
 
-            <button
-              type="button"
-              onClick={() => onSelectNavTab('subdomains')}
-              className={`flex flex-col items-center gap-0.5 py-1 px-2 transition-all ${
-                activeNavTab === 'subdomains' ? 'text-cyan-300 font-bold scale-105' : 'text-neutral-400'
-              }`}
-              title="Subdomínios (512 MB)"
-            >
-              <Globe className="w-4 h-4" />
-              <span className="text-[10px] font-mono">Sites</span>
-            </button>
-
             {isAdmin && (
               <button
                 type="button"
@@ -394,28 +372,9 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <div className="flex items-center gap-3">
                     <Bot className="w-4 h-4 text-cyan-400" />
-                    <span>Instâncias (Bots & Sites)</span>
+                    <span>Instâncias de Bots</span>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => {
-                    onSelectNavTab('subdomains');
-                    setIsDrawerOpen(false);
-                  }}
-                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
-                    activeNavTab === 'subdomains'
-                      ? 'bg-cyan-500/20 text-cyan-200 font-semibold border border-cyan-400/40 shadow-sm'
-                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <Globe className="w-4 h-4 text-cyan-400" />
-                    <span>Subdomínios (Sites 512 MB)</span>
-                  </div>
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 text-[10px] font-bold">512 MB</span>
                 </button>
               </div>
 
@@ -487,7 +446,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full apple-pill-btn apple-pill-primary flex items-center justify-center gap-2 py-3 rounded-2xl font-mono text-xs font-semibold text-white shadow-lg"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Novo Deploy (Bot ou Site)</span>
+                <span>+ Novo Deploy (Bot)</span>
               </button>
 
               {onSignOut && (

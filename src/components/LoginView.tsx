@@ -271,7 +271,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 Acesse o Painel
               </h3>
               <p className="text-xs text-neutral-400 mt-2 font-sans leading-relaxed">
-                Conecte-se com sua conta Discord oficial para gerenciar bots 24/7, registrar subdomínios e hospedar sites com 512 MB de RAM.
+                Conecte-se com sua conta Discord oficial para gerenciar seus bots de Discord e Telegram 24/7 com alta disponibilidade e latência reduzida.
               </p>
             </div>
 
@@ -318,14 +318,14 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-cyan-500/20 text-cyan-400 shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
-                <span>Cota de <strong>512 MB</strong> para Sites & Proxies Web</span>
+                <span>Deploy instantâneo via arquivo .zip ou <code>aethel.config</code></span>
               </div>
 
               <div className="flex items-center gap-2.5 text-xs text-neutral-300 font-sans">
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-400 shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
-                <span>Subdomínio gratuito na Vercel (ex: <code>/sites/seunome</code>)</span>
+                <span>Heartbeat 24/7 com latência reduzida (&lt; 20ms)</span>
               </div>
 
               <div className="flex items-center gap-2.5 text-xs text-neutral-300 font-sans">

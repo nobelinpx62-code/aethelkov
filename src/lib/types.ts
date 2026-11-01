@@ -1,4 +1,4 @@
-export type BotPlatform = 'DISCORD' | 'TELEGRAM' | 'SITE';
+export type BotPlatform = 'DISCORD' | 'TELEGRAM';
 
 export type BotStatus = 'ONLINE' | 'STOPPED' | 'CRASHED' | 'BOOTING';
 
@@ -14,8 +14,7 @@ export interface AethelBot {
   assigned_node: string;
   ram_limit_mb: number;
   main_file: string;
-  config_type: 'aethel' | 'discloud' | 'site';
-  subdomain?: string;
+  config_type: 'aethel' | 'discloud';
   storage_size_bytes?: number;
   current_ram_mb?: number;
   current_cpu_percent?: number;

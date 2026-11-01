@@ -35,26 +35,24 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { bot_name, platform, token, ram_limit_mb, main_file, config_type, assigned_node, subdomain } = body;
+    const { bot_name, platform, token, ram_limit_mb, main_file, config_type, assigned_node } = body;
 
-    const effectiveToken = token || (platform === 'SITE' ? `site-token-${Date.now()}` : '');
-
-    if (!bot_name || !effectiveToken || !platform) {
-      return NextResponse.json({ error: 'Nome e plataforma são obrigatórios.' }, { status: 400 });
+    if (!bot_name || !token || !platform) {
+      return NextResponse.json({ error: 'Nome, token e plataforma são obrigatórios.' }, { status: 400 });
     }
 
-    const maxAllowedRam = platform === 'SITE' ? Math.min(ram_limit_mb || 512, 512) : Math.min(ram_limit_mb || 100, 100);
+    const maxAllowedRam = Math.min(ram_limit_mb || 100, 100);
 
     // Executa a função RPC do Supabase
     const { data, error } = await supabase.rpc('register_or_update_bot', {
       p_user_id: 'default-user',
       p_bot_name: bot_name,
       p_platform: platform,
-      p_token_encrypted: effectiveToken,
+      p_token_encrypted: token,
       p_ram_limit_mb: maxAllowedRam,
-      p_main_file: main_file || (platform === 'SITE' ? 'index.html' : 'index.js'),
-      p_config_type: config_type || (platform === 'SITE' ? 'site' : 'aethel'),
-      p_assigned_node: assigned_node || (platform === 'SITE' ? 'aethel-edge-web' : 'farol-alpha'),
+      p_main_file: main_file || 'index.js',
+      p_config_type: config_type || 'aethel',
+      p_assigned_node: assigned_node || 'farol-alpha',
     });
 
     if (error) {
@@ -62,15 +60,6 @@ export async function POST(req: NextRequest) {
     }
 
     const botId = data?.bot_id;
-
-    // Se for site com subdomínio, armazena no registro da instância
-    if (subdomain && botId) {
-      try {
-        await supabase.from('aethel_bots').update({ subdomain }).eq('id', botId);
-      } catch {
-        // Fallback suave
-      }
-    }
 
     // Se for Discord, despacha SPAWN_BOT para o nó do Farol via Supabase Realtime Broadcast
     if (platform === 'DISCORD' && botId) {

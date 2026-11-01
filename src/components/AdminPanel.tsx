@@ -93,7 +93,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             const parsed = JSON.parse(jsonStr);
             if (parsed.nodeId && !nodesMap[parsed.nodeId]) {
               const hbDate = new Date(row.created_at);
-              const isFresh = (Date.now() - hbDate.getTime()) < 60000; // 60 segundos
+              // Tolerância de 3 minutos para fuso horário e sincronização
+              const isFresh = Math.abs(Date.now() - hbDate.getTime()) < 180000;
               nodesMap[parsed.nodeId] = {
                 nodeId: parsed.nodeId,
                 status: isFresh ? 'ONLINE' : 'STANDBY',
@@ -174,8 +175,8 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )
       .subscribe();
 
-    // Polling a cada 10 segundos para manter status atualizado
-    const interval = setInterval(fetchNodeHeartbeats, 10000);
+    // Polling a cada 5 segundos para manter status sempre atualizado
+    const interval = setInterval(fetchNodeHeartbeats, 5000);
 
     return () => {
       supabase.removeChannel(channel);

@@ -11,7 +11,7 @@ import { BotDetailView } from '@/components/BotDetailView';
 import { AdminAuthModal } from '@/components/AdminAuthModal';
 import { AdminPanel } from '@/components/AdminPanel';
 import { AethelBot, ClusterStats } from '@/lib/types';
-import { ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { ShieldCheck, CheckCircle2, Plus, UploadCloud } from 'lucide-react';
 
 export default function DashboardPage() {
   const [bots, setBots] = useState<AethelBot[]>([]);
@@ -27,6 +27,7 @@ export default function DashboardPage() {
 
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
+  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'storage'>('overview');
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -52,7 +53,6 @@ export default function DashboardPage() {
         setBots(data.bots || []);
         if (data.stats) setStats(data.stats);
 
-        // Se nenhum bot estiver selecionado, seleciona o primeiro
         if (!selectedBotId && data.bots && data.bots.length > 0) {
           setSelectedBotId(data.bots[0].id);
         }
@@ -89,7 +89,10 @@ export default function DashboardPage() {
   };
 
   const handleDeleteBot = async (botId: string) => {
-    if (!confirm('Tem certeza que deseja encerrar e excluir esta instância permanentemente?')) {
+    const targetBot = bots.find(b => b.id === botId);
+    const botName = targetBot ? targetBot.bot_name : 'esta instância';
+
+    if (!confirm(`Tem certeza que deseja apagar ${botName}? A conexão na Discloud será encerrada e o registro excluído.`)) {
       return;
     }
 
@@ -100,6 +103,11 @@ export default function DashboardPage() {
         if (selectedBotId === botId) {
           setSelectedBotId(null);
         }
+        if (focusedBotId === botId) {
+          setFocusedBotId(null);
+        }
+        setNotification(`🗑️ Instância "${botName}" apagada com sucesso!`);
+        setTimeout(() => setNotification(null), 5000);
         fetchBotsAndStats();
       }
     } catch (err) {
@@ -124,133 +132,167 @@ export default function DashboardPage() {
 
   const selectedBot = bots.find((b) => b.id === selectedBotId) || (bots.length > 0 ? bots[0] : null);
   const focusedBot = bots.find((b) => b.id === focusedBotId);
-
-  // Calcula total de bytes consumidos no storage
   const totalStorageBytes = bots.reduce((acc, curr) => acc + (curr.storage_size_bytes || 0), 0);
 
   return (
-    <div className="min-h-screen flex flex-col">
-      <Navbar
-        onOpenDeploy={() => setIsDeployOpen(true)}
-        onRefresh={fetchBotsAndStats}
-        isRefreshing={isRefreshing}
-        onTriggerAdmin={handleTriggerAdmin}
-      />
+    <div className="min-h-screen flex flex-col relative selection:bg-white/20 selection:text-white">
+      {/* Motor de Iluminação Óptica Estática (Zero GPU Bottleneck / Zero Lag) */}
+      <div className="ambient-light-layer">
+        <div className="light-cyan"></div>
+        <div className="light-indigo"></div>
+        <div className="light-emerald"></div>
+      </div>
 
-      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-8 space-y-8">
-        {/* Notificação Temporária */}
-        {notification && (
-          <div className="p-4 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-3">
-            <CheckCircle2 className="w-5 h-5 shrink-0" />
-            <span>{notification}</span>
-          </div>
-        )}
+      <div className="relative z-10 flex min-h-screen flex-col">
+        {/* Dynamic Island Dock Navigation */}
+        <Navbar
+          onOpenDeploy={() => setIsDeployOpen(true)}
+          onRefresh={fetchBotsAndStats}
+          isRefreshing={isRefreshing}
+          onTriggerAdmin={handleTriggerAdmin}
+          activeNavTab={activeNavTab}
+          onSelectNavTab={(tab) => {
+            setActiveNavTab(tab);
+            setFocusedBotId(null);
+            setIsAdminPanelOpen(false);
+          }}
+        />
 
-        {isAdminPanelOpen ? (
-          /* Painel Root de Infraestrutura e Gestão de Nós Mesh */
-          <AdminPanel
-            bots={bots}
-            onClose={() => setIsAdminPanelOpen(false)}
-            onRefreshBots={fetchBotsAndStats}
-          />
-        ) : focusedBot ? (
-          /* Visualização de Detalhes Estilo Discloud Pro */
-          <BotDetailView
-            bot={focusedBot}
-            onBack={() => setFocusedBotId(null)}
-            onToggleStatus={handleToggleStatus}
-            onRefresh={fetchBotsAndStats}
-          />
-        ) : (
-          /* Visão Geral do Grid */
-          <>
-            {/* Hero Banner / Resumo da Topologia */}
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-              <div>
-                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-                  Aethelkov Control Plane
-                </h1>
-                <p className="text-sm text-slate-400 mt-1">
-                  Malha híbrida desacoplada: Presença 24/7 (Discloud Farol) + Execução Serverless (Vercel)
-                </p>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-mono px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                <ShieldCheck className="w-4 h-4" />
-                <span>INFRA: R$ 0,00 • ZERO VPS</span>
+        {/* Container Central da Dashboard */}
+        <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-8 pb-20">
+          {/* Notificação Temporária */}
+          {notification && (
+            <div className="mb-6 p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-3 shadow-lg animate-fadeIn">
+              <CheckCircle2 className="w-5 h-5 shrink-0" />
+              <span>{notification}</span>
+            </div>
+          )}
+
+          {isAdminPanelOpen ? (
+            /* Painel Root de Infraestrutura com Várias Abas */
+            <AdminPanel
+              bots={bots}
+              onClose={() => setIsAdminPanelOpen(false)}
+              onRefreshBots={fetchBotsAndStats}
+              onDeleteBot={handleDeleteBot}
+              onToggleBotStatus={handleToggleStatus}
+            />
+          ) : focusedBot ? (
+            /* Visualização Detalhada Estilo Discloud Pro */
+            <BotDetailView
+              bot={focusedBot}
+              onBack={() => setFocusedBotId(null)}
+              onToggleStatus={handleToggleStatus}
+              onRefresh={fetchBotsAndStats}
+            />
+          ) : (
+            /* Visão Geral (Apple Liquid Dashboard) */
+            <div className="space-y-8 animate-fadeIn">
+              {/* Linha Superior de Boas-Vindas e Ação Rápida */}
+              <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div>
+                  <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.03em] text-white">
+                    Painel Operacional
+                  </h1>
+                  <p className="text-sm text-neutral-400 mt-1">
+                    Gerenciamento autônomo de aplicações via <span className="text-white font-mono">aethel.config</span> &amp; <span className="text-white font-mono">discloud.config</span>
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-3">
+                  <button
+                    onClick={() => setIsDeployOpen(true)}
+                    className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold tracking-wide text-white"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Nova Instância</span>
+                  </button>
+                </div>
+              </section>
+
+              {/* Cartões de Telemetria e Alocação */}
+              {activeNavTab !== 'instances' && (
+                <section className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="md:col-span-2">
+                    <StorageHUD usedBytes={totalStorageBytes} />
+                  </div>
+                  <div className="md:col-span-2">
+                    <MetricsBanner stats={stats} />
+                  </div>
+                </section>
+              )}
+
+              {/* Grade Principal de 2 Colunas: Lista de Bots & Terminal Flutuante */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+                {/* Coluna Esquerda: Cartões de Bots Gerenciados (lg:col-span-8) */}
+                <div className="lg:col-span-8">
+                  <BotGrid
+                    bots={bots}
+                    selectedBotId={selectedBotId}
+                    onSelectBot={(id) => setSelectedBotId(id)}
+                    onOpenDetails={(id) => setFocusedBotId(id)}
+                    onToggleStatus={handleToggleStatus}
+                    onDeleteBot={handleDeleteBot}
+                    onSetupTelegram={handleSetupTelegram}
+                  />
+                </div>
+
+                {/* Coluna Direita: Live Console & Ações do Vault (lg:col-span-4) */}
+                <div className="lg:col-span-4 space-y-6">
+                  {/* Terminal Óptico Flutuante */}
+                  <LiveTerminal selectedBot={selectedBot} />
+
+                  {/* Card de Upload Rápido Lateral */}
+                  <div className="apple-glass-card relative overflow-hidden rounded-[32px] p-6 text-center border border-white/12">
+                    <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+
+                    <div className="flex h-12 w-12 mx-auto items-center justify-center rounded-full bg-white/10 border border-white/20 mb-3 shadow-inner">
+                      <UploadCloud className="h-5 w-5 text-white" />
+                    </div>
+                    <h4 className="text-sm font-semibold text-white">Atualizar Código</h4>
+                    <p className="text-xs text-neutral-400 mt-1 mb-4">
+                      Envie um novo arquivo zip para recarregar ou adicionar instâncias.
+                    </p>
+                    
+                    <button
+                      onClick={() => setIsDeployOpen(true)}
+                      className="apple-pill-btn w-full rounded-full py-2.5 text-xs font-semibold tracking-wide text-white uppercase"
+                    >
+                      Upload Rápido
+                    </button>
+                  </div>
+                </div>
               </div>
             </div>
+          )}
+        </main>
 
-            {/* Top Metrics Cards */}
-            <MetricsBanner stats={stats} />
+        {/* Deploy Modal */}
+        <DeployModal
+          isOpen={isDeployOpen}
+          onClose={() => setIsDeployOpen(false)}
+          onSuccess={() => {
+            fetchBotsAndStats();
+            setNotification('🚀 Instância implantada com sucesso na malha Aethelkov!');
+            setTimeout(() => setNotification(null), 5000);
+          }}
+        />
 
-            {/* Storage HUD */}
-            <StorageHUD usedBytes={totalStorageBytes} />
+        {/* Modal Secreto de Autenticação Admin */}
+        <AdminAuthModal
+          isOpen={isAdminAuthModalOpen}
+          onClose={() => setIsAdminAuthModalOpen(false)}
+          onSuccess={() => {
+            setIsAdminAuthModalOpen(false);
+            setIsAdminPanelOpen(true);
+          }}
+        />
 
-            {/* Grid de Instâncias */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-white tracking-wide">
-                  Instâncias em Execução
-                </h2>
-                <span className="text-xs text-slate-400">
-                  {bots.length} {bots.length === 1 ? 'instância' : 'instâncias'} alocadas • Clique para abrir o painel detalhado
-                </span>
-              </div>
-
-              <BotGrid
-                bots={bots}
-                selectedBotId={selectedBotId}
-                onSelectBot={(id) => setSelectedBotId(id)}
-                onOpenDetails={(id) => setFocusedBotId(id)}
-                onToggleStatus={handleToggleStatus}
-                onDeleteBot={handleDeleteBot}
-                onSetupTelegram={handleSetupTelegram}
-              />
-            </section>
-
-            {/* Console de Terminal em Tempo Real */}
-            <section className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold text-white tracking-wide">
-                  Live Console & Gateway Heartbeats
-                </h2>
-                <span className="text-xs text-slate-400 font-mono">
-                  Opcode 1 • Realtime Supabase Stream
-                </span>
-              </div>
-
-              <LiveTerminal selectedBot={selectedBot} />
-            </section>
-          </>
-        )}
-      </main>
-
-      {/* Deploy Modal */}
-      <DeployModal
-        isOpen={isDeployOpen}
-        onClose={() => setIsDeployOpen(false)}
-        onSuccess={() => {
-          fetchBotsAndStats();
-          setNotification('🚀 Instância implantada com sucesso na malha Aethelkov!');
-          setTimeout(() => setNotification(null), 5000);
-        }}
-      />
-
-      {/* Modal Secreto de Autenticação Admin */}
-      <AdminAuthModal
-        isOpen={isAdminAuthModalOpen}
-        onClose={() => setIsAdminAuthModalOpen(false)}
-        onSuccess={() => {
-          setIsAdminAuthModalOpen(false);
-          setIsAdminPanelOpen(true);
-        }}
-      />
-
-      {/* Footer */}
-      <footer className="mt-auto border-t border-white/5 py-6 px-4 text-center text-xs text-slate-500 font-mono">
-        AETHELKOV AUTONOMOUS HYBRID GRID RUNTIME • 100% RETROCOMPATÍVEL COM DISCLOUD.CONFIG
-      </footer>
+        {/* Rodapé Minimalista */}
+        <footer className="mt-auto py-8 text-center border-t border-white/5 font-mono text-xs text-neutral-500">
+          Aethel Kov Systems &copy; 2026. Design concebido sob ótica Liquid Glass.
+        </footer>
+      </div>
     </div>
   );
 }
-

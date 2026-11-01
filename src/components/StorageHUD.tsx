@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Database, AlertTriangle } from 'lucide-react';
+import { HardDrive, AlertTriangle } from 'lucide-react';
 
 interface StorageHUDProps {
   usedBytes: number;
@@ -12,55 +12,47 @@ export const StorageHUD: React.FC<StorageHUDProps> = ({ usedBytes }) => {
   const usedMb = usedBytes / (1024 * 1024);
   const percentage = Math.min(Math.round((usedBytes / quotaBytes) * 100), 100);
   const isNearLimit = percentage > 85;
+  const availableMb = Math.max(100 - usedMb, 0).toFixed(1);
 
   return (
-    <div className="liquid-glass rounded-2xl p-6 relative overflow-hidden">
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <div className="flex items-center gap-3">
-          <div className="p-2.5 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-            <Database className="w-5 h-5" />
-          </div>
-          <div>
-            <h3 className="text-sm font-semibold text-white tracking-wide">
-              HUD de Armazenamento Isolado
-            </h3>
-            <p className="text-xs text-slate-400">
-              Cota estrita de 100 MB por instância / usuário
-            </p>
-          </div>
-        </div>
-        <div className="text-right">
-          <span className="text-xl font-bold font-mono text-white">
-            {usedMb.toFixed(1)} <span className="text-xs text-slate-400">/ 100 MB</span>
-          </span>
-          <div className="text-[11px] text-slate-400">
-            {percentage}% alocado
-          </div>
-        </div>
+    <div className="apple-glass-card relative overflow-hidden rounded-[28px] p-6 border border-white/12">
+      <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
+      
+      <div className="flex items-center justify-between mb-4">
+        <span className="inline-flex items-center gap-2 rounded-full bg-white/5 border border-white/10 px-3 py-0.5 font-mono text-[10px] text-neutral-300 uppercase">
+          <HardDrive className="h-3 w-3 text-cyan-300" />
+          Armazenamento Vault
+        </span>
+        <span className="font-mono text-xs text-emerald-400 font-medium">100% Saudável</span>
       </div>
 
-      {/* Optical Fluid Bar */}
-      <div className="relative w-full h-3.5 bg-black/50 rounded-full overflow-hidden p-0.5 border border-white/10">
-        <div
-          className={`h-full rounded-full transition-all duration-700 relative overflow-hidden ${
-            isNearLimit
-              ? 'bg-gradient-to-r from-amber-500 to-rose-500 shadow-[0_0_15px_rgba(244,63,94,0.5)]'
-              : 'bg-gradient-to-r from-cyan-500 via-emerald-400 to-teal-300 shadow-[0_0_15px_rgba(16,185,129,0.4)]'
-          }`}
-          style={{ width: `${Math.max(percentage, 2)}%` }}
-        >
-          {/* Subtle fluid wave shine */}
-          <div className="absolute inset-0 bg-white/20 animate-pulse"></div>
-        </div>
+      <div className="flex items-baseline justify-between mb-2">
+        <span className="text-3xl font-semibold tracking-tight text-white font-mono">
+          {usedMb.toFixed(1)} <span className="text-sm text-neutral-500 font-normal">MB</span>
+        </span>
+        <span className="font-mono text-xs text-neutral-400">Limite: 100.0 MB</span>
       </div>
+
+      {/* Barra Líquida Apple Material */}
+      <div className="liquid-track h-3 w-full rounded-full p-0.5 mb-2">
+        <div 
+          className={`liquid-fill h-full rounded-full transition-all duration-700 ${
+            isNearLimit ? 'bg-gradient-to-r from-amber-500 to-rose-500' : ''
+          }`} 
+          style={{ width: `${Math.max(percentage, 2)}%` }}
+        ></div>
+      </div>
+      
+      <p className="font-mono text-[11px] text-neutral-400">
+        {availableMb} MB disponíveis para novos pacotes e scripts
+      </p>
 
       {isNearLimit && (
         <div className="mt-3 flex items-center gap-2 text-xs text-amber-300 bg-amber-500/10 border border-amber-500/20 px-3 py-2 rounded-xl">
           <AlertTriangle className="w-4 h-4 shrink-0" />
-          <span>Atenção: Armazenamento próximo ao limite máximo de 100 MB.</span>
+          <span>Atenção: Armazenamento próximo à cota de 100 MB.</span>
         </div>
       )}
     </div>
   );
 };
-

@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { DollarSign, Activity, HardDrive, Layers } from 'lucide-react';
+import { DollarSign, Cpu, Activity, Layers, HardDrive } from 'lucide-react';
 import { ClusterStats } from '@/lib/types';
 
 interface MetricsBannerProps {
@@ -10,79 +10,60 @@ interface MetricsBannerProps {
 
 export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats }) => {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-      {/* Metric 1: Custo Zero */}
-      <div className="liquid-glass rounded-2xl p-5 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <DollarSign className="w-16 h-16 text-emerald-400" />
+    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Cartão 1: Instâncias Ativas */}
+      <div className="apple-glass-card relative overflow-hidden rounded-[28px] p-6 border border-white/12">
+        <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+        <div className="flex items-center justify-between mb-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 font-mono text-[10px] text-neutral-300 uppercase">
+            <Cpu className="h-3 w-3 text-indigo-300" />
+            Processos Ativos
+          </span>
+          <span className="h-2 w-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399] animate-pulse"></span>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-emerald-400 uppercase tracking-wider mb-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-          Custo de Infraestrutura
+        <div className="text-3xl font-semibold tracking-tight text-white font-mono mb-1">
+          {stats.online_bots} <span className="text-sm font-normal text-neutral-500">/ {stats.total_bots}</span>
         </div>
-        <div className="text-3xl font-bold tracking-tight text-white mt-1">
+        <p className="text-xs text-neutral-400">
+          Discord: <strong className="text-white">{stats.discord_bots}</strong> &bull; Telegram: <strong className="text-white">{stats.telegram_bots}</strong>
+        </p>
+      </div>
+
+      {/* Cartão 2: Custo & Soberania */}
+      <div className="apple-glass-card relative overflow-hidden rounded-[28px] p-6 border border-white/12">
+        <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+        <div className="flex items-center justify-between mb-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 font-mono text-[10px] text-neutral-300 uppercase">
+            <DollarSign className="h-3 w-3 text-emerald-300" />
+            Custo Operacional
+          </span>
+          <span className="font-mono text-[10px] text-emerald-400 font-semibold">100% FREE</span>
+        </div>
+        <div className="text-3xl font-semibold tracking-tight text-emerald-400 font-mono mb-1">
           R$ 0,00
         </div>
-        <p className="text-xs text-slate-400 mt-2">
-          Desacoplamento Vercel + Discloud + Supabase
+        <p className="text-xs text-neutral-400">
+          Zero VPS &bull; Desacoplamento Híbrido
         </p>
       </div>
 
-      {/* Metric 2: Instâncias Ativas */}
-      <div className="liquid-glass rounded-2xl p-5 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Activity className="w-16 h-16 text-cyan-400" />
+      {/* Cartão 3: Heartbeat & Loop de Eventos */}
+      <div className="apple-glass-card relative overflow-hidden rounded-[28px] p-6 border border-white/12">
+        <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+        <div className="flex items-center justify-between mb-4">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 font-mono text-[10px] text-neutral-300 uppercase">
+            <Activity className="h-3 w-3 text-cyan-300" />
+            Loop de Eventos
+          </span>
+          <span className="font-mono text-[10px] text-cyan-400">0.8s</span>
         </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-cyan-400 uppercase tracking-wider mb-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-cyan-400"></span>
-          Instâncias na Malha
+        <div className="text-3xl font-semibold tracking-tight text-white font-mono mb-1">
+          99.98%
         </div>
-        <div className="text-3xl font-bold tracking-tight text-white mt-1 flex items-baseline gap-2">
-          <span>{stats.online_bots}</span>
-          <span className="text-sm font-normal text-slate-400">/ {stats.total_bots} bots</span>
-        </div>
-        <div className="flex items-center gap-3 text-xs text-slate-400 mt-2">
-          <span>Discord: <strong className="text-white">{stats.discord_bots}</strong></span>
-          <span>•</span>
-          <span>Telegram: <strong className="text-white">{stats.telegram_bots}</strong></span>
-        </div>
-      </div>
-
-      {/* Metric 3: Pegada de RAM do Farol */}
-      <div className="liquid-glass rounded-2xl p-5 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <HardDrive className="w-16 h-16 text-purple-400" />
-        </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-purple-400 uppercase tracking-wider mb-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-purple-400"></span>
-          Pegada de RAM (Farol)
-        </div>
-        <div className="text-3xl font-bold tracking-tight text-white mt-1 flex items-baseline gap-2">
-          <span>{stats.estimated_ram_mb || 0}</span>
-          <span className="text-sm font-normal text-slate-400">/ 100 MB</span>
-        </div>
-        <p className="text-xs text-slate-400 mt-2">
-          ~1.05 MB / bot (Sem discord.js / zero cache)
-        </p>
-      </div>
-
-      {/* Metric 4: Protocolo & Mesh */}
-      <div className="liquid-glass rounded-2xl p-5 relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-4 opacity-10">
-          <Layers className="w-16 h-16 text-amber-400" />
-        </div>
-        <div className="flex items-center gap-2 text-xs font-semibold text-amber-400 uppercase tracking-wider mb-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-amber-400"></span>
-          Topologia Mesh
-        </div>
-        <div className="text-2xl font-bold tracking-tight text-white mt-1">
-          Farol Alpha
-        </div>
-        <p className="text-xs text-slate-400 mt-2">
-          Shards 0 a 50 • Relay Gateway v10
+        <p className="text-xs text-neutral-400">
+          Uptime Gateway Discloud &bull; Vercel Runner
         </p>
       </div>
     </div>
   );
 };
-

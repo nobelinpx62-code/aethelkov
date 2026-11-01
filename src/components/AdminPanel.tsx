@@ -17,7 +17,12 @@ import {
   Key,
   LogOut,
   Zap,
-  Activity
+  Activity,
+  Bot,
+  Settings,
+  Database,
+  ExternalLink,
+  Power
 } from 'lucide-react';
 import { AethelBot } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -48,13 +53,20 @@ interface AdminPanelProps {
   bots: AethelBot[];
   onClose: () => void;
   onRefreshBots: () => void;
+  onDeleteBot: (botId: string) => void;
+  onToggleBotStatus: (botId: string, currentStatus: string) => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
   bots,
   onClose,
   onRefreshBots,
+  onDeleteBot,
+  onToggleBotStatus,
 }) => {
+  // Navegação por Abas no Painel Admin
+  const [activeTab, setActiveTab] = useState<'nodes' | 'instances' | 'generator' | 'discloud' | 'settings'>('nodes');
+
   // Contas da Discloud salvas no localStorage
   const [accounts, setAccounts] = useState<DiscloudAccount[]>([]);
   const [newLabel, setNewLabel] = useState('');
@@ -175,7 +187,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       )
       .subscribe();
 
-    // Polling a cada 5 segundos para manter status sempre atualizado
     const interval = setInterval(fetchNodeHeartbeats, 5000);
 
     return () => {
@@ -184,7 +195,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     };
   }, [bots]);
 
-  // Carrega contas salvas
   useEffect(() => {
     try {
       const saved = localStorage.getItem('aethel_discloud_accounts');
@@ -252,11 +262,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     try {
       const zip = new JSZip();
 
-      // discloud.config
       const discloudConfig = `NAME=aethel-${genNodeName.trim()}\nTYPE=bot\nMAIN=farol.js\nRAM=100\nAUTORESTART=true\nVERSION=latest\nAPT=tools\n`;
       zip.file('discloud.config', discloudConfig);
 
-      // package.json
       const packageJson = JSON.stringify({
         name: `aethel-${genNodeName.trim()}`,
         version: "1.0.0",
@@ -270,7 +278,6 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }, null, 2);
       zip.file('package.json', packageJson);
 
-      // farol.js com Auto-Discovery Heartbeat integrado
       const farolScript = `/**
  * AETHELKOV CORE - AETHEL-FAROL DAEMON (Nó: ${genNodeName})
  * Shard Range: ${genOffset} a ${genOffset + genLimit - 1}
@@ -403,38 +410,102 @@ setInterval(reportNodeHeartbeat, 15000);
 
   return (
     <div className="space-y-6 animate-fadeIn pb-12">
-      {/* Top Header */}
-      <div className="flex items-center justify-between">
+      {/* Top Header Apple Style */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 flex items-center justify-center text-emerald-400 shadow-[0_0_15px_rgba(16,185,129,0.3)]">
-            <Zap className="w-5 h-5" />
+          <div className="w-11 h-11 rounded-2xl bg-gradient-to-b from-white/25 to-white/5 border border-white/25 flex items-center justify-center text-white shadow-xl">
+            <Zap className="w-5 h-5 text-emerald-400" />
           </div>
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-xl font-bold text-white tracking-wide">
+              <h2 className="text-xl font-bold text-white tracking-tight">
                 Aethelkov Mesh Commander
               </h2>
               <span className="text-[10px] font-mono uppercase px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                Admin Root
+                Root Admin
               </span>
             </div>
-            <p className="text-xs text-slate-400">
-              Orquestração de Nós, Auto-Discovery em Tempo Real e Expansão
+            <p className="text-xs text-neutral-400">
+              Painel Avançado de Soberania, Orquestração de Nós e Instâncias
             </p>
           </div>
         </div>
 
         <button
           onClick={onClose}
-          className="capsule-btn capsule-btn-secondary text-xs"
+          className="apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold text-neutral-300 self-start sm:self-auto"
         >
-          <LogOut className="w-3.5 h-3.5" />
+          <LogOut className="w-3.5 h-3.5 mr-1.5" />
           <span>Sair do Modo Admin</span>
         </button>
       </div>
 
-      {/* Banner de Soberania de Infraestrutura */}
-      <div className="liquid-glass rounded-2xl p-6 border border-emerald-500/20 relative overflow-hidden">
+      {/* Navegador de Abas do Admin (5 Abas Completas) */}
+      <div className="apple-glass rounded-full p-1.5 flex items-center gap-1 overflow-x-auto border border-white/10 font-mono text-xs shadow-lg">
+        <button
+          onClick={() => setActiveTab('nodes')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'nodes'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Server className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Nós Mesh ({detectedNodeList.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('instances')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'instances'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Bot className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Gerenciar Instâncias ({bots.length})</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('generator')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'generator'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Download className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Gerador de Nós (.ZIP)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('discloud')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'discloud'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Key className="w-3.5 h-3.5 text-purple-400" />
+          <span>Contas Discloud API</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('settings')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'settings'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Settings className="w-3.5 h-3.5 text-amber-400" />
+          <span>Configurações & Cluster</span>
+        </button>
+      </div>
+
+      {/* Banner de Soberania da Infraestrutura */}
+      <div className="apple-glass-card rounded-[28px] p-6 border border-emerald-500/20 relative overflow-hidden">
+        <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="flex items-center gap-3.5">
             <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 shrink-0">
@@ -442,243 +513,400 @@ setInterval(reportNodeHeartbeat, 15000);
             </div>
             <div>
               <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <span>Infraestrutura Própria e Soberana</span>
-                <span className="text-[10px] text-emerald-400 font-mono">100% PRIVATE CLOUD</span>
+                <span>Infraestrutura Privada e Soberana</span>
+                <span className="text-[10px] text-emerald-400 font-mono">100% SUAS CONTAS</span>
               </h3>
-              <p className="text-xs text-slate-400 mt-0.5 max-w-2xl">
-                Todo o código, banco de dados (Supabase), tokens criptografados e nós de execução pertencem <strong>exclusivamente a você</strong>. Nenhuma informação transita por servidores de terceiros.
+              <p className="text-xs text-neutral-400 mt-0.5 max-w-2xl">
+                Todos os tokens, instâncias, código fonte e banco de dados rodam exclusivamente nas suas contas (GitHub, Supabase, Vercel e Discloud). Zero dependência de terceiros.
               </p>
             </div>
           </div>
 
           <div className="text-right shrink-0">
-            <span className="text-xs text-slate-500 uppercase font-mono block">Capacidade Total da Malha</span>
+            <span className="text-[10px] text-neutral-400 uppercase font-mono block">Capacidade Total da Malha</span>
             <div className="text-2xl font-bold font-mono text-emerald-400">
-              {discordBotsOnline} <span className="text-slate-400 text-sm">/ {totalBotsCapacity} bots</span>
+              {discordBotsOnline} <span className="text-neutral-400 text-sm">/ {totalBotsCapacity} bots</span>
             </div>
-            <span className="text-[11px] text-slate-400">{totalDiscloudRam} MB de RAM ({onlineNodesCount} nós ativos)</span>
+            <span className="text-[11px] text-neutral-400">{totalDiscloudRam} MB agregados ({onlineNodesCount} nós ativos)</span>
           </div>
         </div>
       </div>
 
-      {/* SEÇÃO 1: MONITOR DE NÓS ATIVOS (AUTO-DISCOVERY EM TEMPO REAL) */}
-      <section className="space-y-3">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-sm font-bold text-white">
-            <Server className="w-4 h-4 text-emerald-400" />
-            <span>Nós Farol Detectados na Malha ({detectedNodeList.length} Nós)</span>
+      {/* CONTEÚDO DA ABA 1: NÓS FAROL (AUTO-DISCOVERY EM TEMPO REAL) */}
+      {activeTab === 'nodes' && (
+        <section className="space-y-4 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Server className="w-4 h-4 text-emerald-400" />
+              <span>Nós Farol Detectados em Tempo Real ({detectedNodeList.length})</span>
+            </div>
+            <button
+              onClick={fetchNodeHeartbeats}
+              className="apple-pill-btn rounded-full px-3 py-1 text-xs text-neutral-300 flex items-center gap-1.5"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${isRefreshingNodes ? 'animate-spin text-emerald-400' : ''}`} />
+              <span>Sincronizar</span>
+            </button>
           </div>
-          <button
-            onClick={fetchNodeHeartbeats}
-            className="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors"
-          >
-            <RefreshCw className={`w-3 h-3 ${isRefreshingNodes ? 'animate-spin text-emerald-400' : ''}`} />
-            <span>Sincronizar Nós</span>
-          </button>
-        </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {detectedNodeList.map((node) => {
-            const isOnline = node.status === 'ONLINE';
-            const isAlpha = node.nodeId === 'farol-alpha';
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {detectedNodeList.map((node) => {
+              const isOnline = node.status === 'ONLINE';
+              const isAlpha = node.nodeId === 'farol-alpha';
 
-            return (
-              <div 
-                key={node.nodeId} 
-                className={`liquid-glass rounded-2xl p-5 border relative transition-all duration-300 ${
-                  isOnline ? 'border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10'
-                }`}
-              >
-                <div className="flex items-start justify-between mb-3">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <h4 className="text-base font-bold text-white">{node.nodeId}</h4>
-                      {isAlpha && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                          Mestre
-                        </span>
-                      )}
+              return (
+                <div 
+                  key={node.nodeId} 
+                  className={`apple-glass-card rounded-[28px] p-5 border relative transition-all duration-300 ${
+                    isOnline ? 'border-emerald-500/30' : 'border-white/10'
+                  }`}
+                >
+                  <div className="glass-specular pointer-events-none absolute inset-x-6 top-0 h-[1px]"></div>
+                  
+                  <div className="flex items-start justify-between mb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="text-base font-bold text-white font-mono">{node.nodeId}</h4>
+                        {isAlpha && (
+                          <span className="text-[9px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                            Mestre
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-neutral-400 mt-0.5">Discloud Node</p>
                     </div>
-                    <p className="text-xs text-slate-400 mt-0.5">Discloud Node</p>
+
+                    <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-[11px] border ${
+                      isOnline 
+                        ? 'bg-emerald-500/15 border-emerald-500/30 text-emerald-300' 
+                        : 'bg-amber-500/15 border-amber-500/30 text-amber-300'
+                    }`}>
+                      <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                      <span>{node.status}</span>
+                    </div>
                   </div>
 
-                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-[11px] border ${
-                    isOnline 
-                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
-                      : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
-                  }`}>
-                    <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
-                    <span>{node.status}</span>
+                  <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-2.5 rounded-2xl border border-white/5 my-3">
+                    <div>
+                      <span className="text-[9px] text-neutral-500 block">MEMÓRIA REAL</span>
+                      <span className="text-white font-bold">{node.ramUsedMb} MB</span> <span className="text-neutral-500 text-[10px]">/ {node.ramTotalMb}MB</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-neutral-500 block">SHARD RANGE</span>
+                      <span className="text-neutral-300">{node.shardOffset} a {node.shardOffset + node.shardLimit - 1}</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-neutral-500 block">VCPU</span>
+                      <span className="text-neutral-300">0.25 AMD Epyc</span>
+                    </div>
+                    <div>
+                      <span className="text-[9px] text-neutral-500 block">BOTS ATIVOS</span>
+                      <span className="text-emerald-400 font-bold">{node.activeBots} alocados</span>
+                    </div>
+                  </div>
+
+                  <div className="text-[11px] text-neutral-400 flex items-center justify-between pt-1">
+                    <span>Heartbeat: <strong className="text-neutral-300 font-mono">{new Date(node.lastHeartbeat).toLocaleTimeString()}</strong></span>
+                    <span className="text-emerald-400 flex items-center gap-1 font-mono text-[10px]">
+                      <Activity className="w-3 h-3" />
+                      <span>Ativo</span>
+                    </span>
                   </div>
                 </div>
+              );
+            })}
+          </div>
+        </section>
+      )}
 
-                <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-2.5 rounded-xl border border-white/5 my-3">
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">MEMÓRIA REAL</span>
-                    <span className="text-white font-bold">{node.ramUsedMb} MB</span> <span className="text-slate-400 text-[10px]">/ {node.ramTotalMb}MB</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">SHARD RANGE</span>
-                    <span className="text-slate-300">{node.shardOffset} a {node.shardOffset + node.shardLimit - 1}</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">VCPU</span>
-                    <span className="text-slate-300">0.25 AMD Epyc</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-slate-500 block">INSTÂNCIAS</span>
-                    <span className="text-emerald-400 font-bold">{node.activeBots} bots alocados</span>
-                  </div>
-                </div>
+      {/* CONTEÚDO DA ABA 2: GERENCIAR INSTÂNCIAS (APAGAR, REINICIAR, CONTROLE) */}
+      {activeTab === 'instances' && (
+        <section className="space-y-4 animate-fadeIn">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2 text-sm font-semibold text-white">
+              <Bot className="w-4 h-4 text-cyan-400" />
+              <span>Gerenciamento Completo de Instâncias ({bots.length})</span>
+            </div>
+            <span className="text-xs text-neutral-400 font-mono">
+              Apague ou pause qualquer bot instantaneamente
+            </span>
+          </div>
 
-                <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1">
-                  <span>Heartbeat: <strong className="text-slate-300">{new Date(node.lastHeartbeat).toLocaleTimeString()}</strong></span>
-                  <span className="text-emerald-400 flex items-center gap-1">
-                    <Activity className="w-3 h-3" />
-                    <span>Ativo</span>
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </section>
+          <div className="apple-glass-card rounded-[28px] overflow-hidden border border-white/10">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left font-mono text-xs">
+                <thead className="bg-white/5 border-b border-white/10 text-neutral-400 uppercase text-[10px]">
+                  <tr>
+                    <th className="py-3 px-4">Nome do Bot</th>
+                    <th className="py-3 px-4">Plataforma</th>
+                    <th className="py-3 px-4">Nó Alocado</th>
+                    <th className="py-3 px-4">RAM Cota</th>
+                    <th className="py-3 px-4">Status</th>
+                    <th className="py-3 px-4 text-right">Ações Rápidas</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5 text-neutral-200">
+                  {bots.map((b) => (
+                    <tr key={b.id} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="py-3 px-4 font-semibold text-white flex items-center gap-2">
+                        <Bot className="w-4 h-4 text-cyan-300 shrink-0" />
+                        <span>{b.bot_name}</span>
+                      </td>
+                      <td className="py-3 px-4 text-neutral-300">{b.platform}</td>
+                      <td className="py-3 px-4 text-neutral-400">{b.assigned_node || 'farol-alpha'}</td>
+                      <td className="py-3 px-4 text-neutral-300">{b.ram_limit_mb} MB</td>
+                      <td className="py-3 px-4">
+                        <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[10px] ${
+                          b.status === 'ONLINE' ? 'bg-emerald-500/10 text-emerald-400' : 'bg-rose-500/10 text-rose-400'
+                        }`}>
+                          <span className={`w-1.5 h-1.5 rounded-full ${b.status === 'ONLINE' ? 'bg-emerald-400' : 'bg-rose-400'}`}></span>
+                          <span>{b.status}</span>
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => onToggleBotStatus(b.id, b.status)}
+                            className="p-1.5 rounded-lg bg-white/5 hover:bg-white/10 text-neutral-300"
+                            title={b.status === 'ONLINE' ? 'Pausar' : 'Iniciar'}
+                          >
+                            <Power className="w-3.5 h-3.5" />
+                          </button>
+                          {/* Botão de Excluir / Apagar */}
+                          <button
+                            onClick={() => onDeleteBot(b.id)}
+                            className="p-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 transition-colors"
+                            title="Apagar Instância"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                  {bots.length === 0 && (
+                    <tr>
+                      <td colSpan={6} className="py-8 text-center text-neutral-500">
+                        Nenhuma instância cadastrada no momento.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+      )}
 
-      {/* SEÇÃO 2: ÁREA MANUAL - GERADOR DE PACOTES PARA DISCLOUD (.ZIP) */}
-      <section className="liquid-glass rounded-2xl p-6 border border-white/10">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 rounded-xl bg-cyan-500/10 border border-cyan-500/20 text-cyan-400">
-              <Download className="w-4 h-4" />
+      {/* CONTEÚDO DA ABA 3: ÁREA MANUAL - GERADOR DE PACOTES (.ZIP) */}
+      {activeTab === 'generator' && (
+        <section className="apple-glass-card rounded-[28px] p-6 border border-white/10 space-y-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
+              <Download className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="text-sm font-bold text-white">
-                Área Manual: Gerador de Pacotes de Nós (.ZIP)
+              <h3 className="text-base font-bold text-white">
+                Gerador de Pacotes de Nós para a Discloud (.ZIP)
               </h3>
-              <p className="text-xs text-slate-400">
-                Gere um arquivo com auto-discovery já embutido para subir em qualquer conta gratuita da Discloud
+              <p className="text-xs text-neutral-400">
+                Gere o arquivo do nó com auto-discovery pré-configurado para subir em qualquer conta secundária
               </p>
             </div>
           </div>
-        </div>
 
-        {downloadSuccess && (
-          <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-            <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{downloadSuccess} Basta subir o arquivo na Discloud e ele aparecerá na lista de nós automaticamente!</span>
-          </div>
-        )}
+          {downloadSuccess && (
+            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0" />
+              <span>{downloadSuccess} Basta subir na Discloud e ele aparecerá na aba &quot;Nós Mesh&quot; automaticamente!</span>
+            </div>
+          )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Nome do Nó</label>
-            <input
-              type="text"
-              value={genNodeName}
-              onChange={(e) => setGenNodeName(e.target.value)}
-              placeholder="farol-bravo"
-              className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
-            />
-          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Nome do Nó</label>
+              <input
+                type="text"
+                value={genNodeName}
+                onChange={(e) => setGenNodeName(e.target.value)}
+                placeholder="farol-bravo"
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Shard Offset</label>
-            <input
-              type="number"
-              value={genOffset}
-              onChange={(e) => setGenOffset(Number(e.target.value))}
-              placeholder="50"
-              className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
-            />
-          </div>
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Shard Offset</label>
+              <input
+                type="number"
+                value={genOffset}
+                onChange={(e) => setGenOffset(Number(e.target.value))}
+                placeholder="50"
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+              />
+            </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Limite de Bots (Shard)</label>
-            <input
-              type="number"
-              value={genLimit}
-              onChange={(e) => setGenLimit(Number(e.target.value))}
-              placeholder="50"
-              className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
-            />
-          </div>
-        </div>
-
-        <div className="flex items-center justify-between pt-2 border-t border-white/5">
-          <span className="text-xs text-slate-400">
-            Adiciona automaticamente +{genLimit} slots de bots com presença verde 24/7
-          </span>
-
-          <button
-            onClick={handleGenerateNodeZip}
-            disabled={isGeneratingZip}
-            className="capsule-btn capsule-btn-primary text-xs"
-          >
-            <Download className="w-3.5 h-3.5" />
-            <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar discloud.zip'}</span>
-          </button>
-        </div>
-      </section>
-
-      {/* SEÇÃO 3: CADASTRAR CONTAS DISCLOUD VIA API OFICIAL */}
-      <section className="liquid-glass rounded-2xl p-6 border border-white/10">
-        <div className="flex items-center gap-2.5 mb-4">
-          <div className="p-2 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
-            <Key className="w-4 h-4" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold text-white">
-              Conectar Contas Adicionais da Discloud (API Oficial)
-            </h3>
-            <p className="text-xs text-slate-400">
-              Adicione tokens de API da Discloud para somar a RAM e monitorar tudo centralizado
-            </p>
-          </div>
-        </div>
-
-        {accountError && (
-          <div className="mb-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 shrink-0" />
-            <span>{accountError}</span>
-          </div>
-        )}
-
-        <form onSubmit={handleAddAccount} className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Identificação da Conta</label>
-            <input
-              type="text"
-              value={newLabel}
-              onChange={(e) => setNewLabel(e.target.value)}
-              placeholder="Ex: Minha Conta Secundária"
-              className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
-            />
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Limite de Bots (Shard)</label>
+              <input
+                type="number"
+                value={genLimit}
+                onChange={(e) => setGenLimit(Number(e.target.value))}
+                placeholder="50"
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+              />
+            </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-300 mb-1">Discloud API Token</label>
-            <input
-              type="password"
-              required
-              value={newToken}
-              onChange={(e) => setNewToken(e.target.value)}
-              placeholder="Cole seu token de API Discloud..."
-              className="w-full px-3 py-2 rounded-xl bg-black/40 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-purple-500"
-            />
-          </div>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-white/5">
+            <span className="text-xs text-neutral-400 font-mono">
+              Adiciona +{genLimit} slots de bots com presença verde 24/7 sem custos
+            </span>
 
-          <div className="flex items-end">
             <button
-              type="submit"
-              disabled={loadingAccount}
-              className="capsule-btn capsule-btn-primary w-full text-xs"
+              onClick={handleGenerateNodeZip}
+              disabled={isGeneratingZip}
+              className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white"
             >
-              <Plus className="w-3.5 h-3.5" />
-              <span>{loadingAccount ? 'Verificando API...' : 'Cadastrar e Somar RAM'}</span>
+              <Download className="w-3.5 h-3.5 mr-2" />
+              <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar discloud.zip'}</span>
             </button>
           </div>
-        </form>
-      </section>
+        </section>
+      )}
+
+      {/* CONTEÚDO DA ABA 4: CONTAS DISCLOUD (API OFICIAL) */}
+      {activeTab === 'discloud' && (
+        <section className="apple-glass-card rounded-[28px] p-6 border border-white/10 space-y-4 animate-fadeIn">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-purple-500/10 border border-purple-500/20 text-purple-400">
+              <Key className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Contas Adicionais da Discloud (API Oficial)
+              </h3>
+              <p className="text-xs text-neutral-400">
+                Conecte seus tokens para somar a RAM total e monitorar o status das suas contas em um só lugar
+              </p>
+            </div>
+          </div>
+
+          {accountError && (
+            <div className="p-3 rounded-2xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>{accountError}</span>
+            </div>
+          )}
+
+          <form onSubmit={handleAddAccount} className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Identificação da Conta</label>
+              <input
+                type="text"
+                value={newLabel}
+                onChange={(e) => setNewLabel(e.target.value)}
+                placeholder="Ex: Minha Conta Secundária"
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div>
+              <label className="block text-xs font-medium text-neutral-300 mb-1">Discloud API Token</label>
+              <input
+                type="password"
+                required
+                value={newToken}
+                onChange={(e) => setNewToken(e.target.value)}
+                placeholder="Cole seu token de API da Discloud..."
+                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-purple-500"
+              />
+            </div>
+
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={loadingAccount}
+                className="apple-pill-btn apple-pill-primary w-full py-2 text-xs font-semibold text-white"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1" />
+                <span>{loadingAccount ? 'Validando Token...' : 'Conectar Conta'}</span>
+              </button>
+            </div>
+          </form>
+
+          {/* Lista de Contas Conectadas */}
+          <div className="pt-4 border-t border-white/5 space-y-2">
+            <h4 className="text-xs font-mono text-neutral-400 uppercase">Contas Conectadas ({accounts.length})</h4>
+            {accounts.map((acc) => (
+              <div key={acc.id} className="flex items-center justify-between p-3 rounded-xl bg-black/40 border border-white/5 text-xs font-mono">
+                <div>
+                  <span className="text-white font-semibold">{acc.label}</span>
+                  <div className="text-[11px] text-neutral-400 mt-0.5">
+                    RAM: {acc.totalRamMb} MB &bull; Plano: {acc.plan} &bull; Apps: {acc.appsCount}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleRemoveAccount(acc.id)}
+                  className="p-1.5 text-neutral-500 hover:text-rose-400 transition-colors"
+                  title="Remover conta"
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+            {accounts.length === 0 && (
+              <p className="text-xs text-neutral-500 font-mono py-2">
+                Nenhuma conta adicional vinculada ainda.
+              </p>
+            )}
+          </div>
+        </section>
+      )}
+
+      {/* CONTEÚDO DA ABA 5: CONFIGURAÇÕES & TELEMETRIA DO CLUSTER */}
+      {activeTab === 'settings' && (
+        <section className="apple-glass-card rounded-[28px] p-6 border border-white/10 space-y-4 animate-fadeIn font-mono text-xs">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-400">
+              <Settings className="w-5 h-5" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-white">
+                Parâmetros Globais do Cluster Aethelkov
+              </h3>
+              <p className="text-xs text-neutral-400">
+                Variáveis do Control Plane, Vercel Serverless e Supabase State Vault
+              </p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3 pt-2">
+            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
+              <span className="text-neutral-500 text-[10px] block">SUPABASE STATE VAULT</span>
+              <span className="text-white truncate block">https://rrxrcxutdzedkqaesdkm.supabase.co</span>
+              <span className="text-emerald-400 text-[10px] block">Conexão Ativa via WebSockets RTC</span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
+              <span className="text-neutral-500 text-[10px] block">VERCEL RUNNER DISPATCH</span>
+              <span className="text-white truncate block">/api/dispatch (Autenticado via Header)</span>
+              <span className="text-cyan-400 text-[10px] block">Latência Média: &lt; 40ms</span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
+              <span className="text-neutral-500 text-[10px] block">ISOLAMENTO DE STORAGE</span>
+              <span className="text-white block">Franquia Estrita de 100 MB</span>
+              <span className="text-neutral-400 text-[10px] block">Bucket: aethel-deployments</span>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-1">
+              <span className="text-neutral-500 text-[10px] block">SEGURANÇA INTERNA</span>
+              <span className="text-white block">Hash SHA-256 (kauan0906)</span>
+              <span className="text-purple-400 text-[10px] block">Proteção Criptográfica no Cliente</span>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 };

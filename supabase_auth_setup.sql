@@ -30,56 +30,70 @@ create policy "Usuários podem atualizar seu próprio perfil"
   on public.profiles for update 
   using (auth.uid() = id);
 
--- 2. Trigger Automático para criar perfil ao registrar via Discord ou E-mail
+-- 2. Trigger Automático para criar perfil ao registrar via Discord ou E-mail (BLINDADO CONTRA ERROS)
 create or replace function public.handle_new_user()
-returns trigger as $$
+returns trigger 
+language plpgsql
+security definer 
+set search_path = public
+as $$
 declare
   v_display_name text;
   v_avatar_url text;
   v_discord_id text;
 begin
-  -- Extração de metadados do Discord ou cadastro por E-mail
-  v_display_name := coalesce(
-    new.raw_user_meta_data->>'full_name',
-    new.raw_user_meta_data->>'name',
-    new.raw_user_meta_data->>'custom_claims'->>'global_name',
-    split_part(new.email, '@', 1)
-  );
+  -- Bloco de exceção: garante que NADA interrompa ou impeça o salvamento na tabela auth.users
+  begin
+    -- Extração segura de metadados do Discord ou cadastro por E-mail
+    v_display_name := coalesce(
+      new.raw_user_meta_data->>'full_name',
+      new.raw_user_meta_data->>'name',
+      new.raw_user_meta_data->'custom_claims'->>'global_name',
+      split_part(coalesce(new.email, 'user@aethel'), '@', 1),
+      'Usuário Aethel'
+    );
 
-  v_avatar_url := coalesce(
-    new.raw_user_meta_data->>'avatar_url',
-    new.raw_user_meta_data->>'picture'
-  );
+    v_avatar_url := coalesce(
+      new.raw_user_meta_data->>'avatar_url',
+      new.raw_user_meta_data->>'picture',
+      null
+    );
 
-  v_discord_id := coalesce(
-    new.raw_user_meta_data->>'provider_id',
-    new.raw_user_meta_data->>'sub'
-  );
+    v_discord_id := coalesce(
+      new.raw_user_meta_data->>'provider_id',
+      new.raw_user_meta_data->>'sub',
+      null
+    );
 
-  insert into public.profiles (id, email, display_name, avatar_url, discord_id, quota_limit_mb)
-  values (
-    new.id,
-    new.email,
-    v_display_name,
-    v_avatar_url,
-    v_discord_id,
-    100
-  )
-  on conflict (id) do update set
-    email = excluded.email,
-    display_name = coalesce(excluded.display_name, public.profiles.display_name),
-    avatar_url = coalesce(excluded.avatar_url, public.profiles.avatar_url),
-    discord_id = coalesce(excluded.discord_id, public.profiles.discord_id),
-    updated_at = now();
+    insert into public.profiles (id, email, display_name, avatar_url, discord_id, quota_limit_mb)
+    values (
+      new.id,
+      coalesce(new.email, ''),
+      v_display_name,
+      v_avatar_url,
+      v_discord_id,
+      100
+    )
+    on conflict (id) do update set
+      email = coalesce(excluded.email, public.profiles.email),
+      display_name = coalesce(excluded.display_name, public.profiles.display_name),
+      avatar_url = coalesce(excluded.avatar_url, public.profiles.avatar_url),
+      discord_id = coalesce(excluded.discord_id, public.profiles.discord_id),
+      updated_at = now();
+
+  exception when others then
+    -- Nunca interrompe o cadastro do usuário caso ocorra qualquer aviso no perfil
+    raise warning 'handle_new_user aviso: %', sqlerrm;
+  end;
 
   return new;
 end;
-$$ language plpgsql security definer;
+$$;
 
 -- Registra o Trigger na tabela nativa auth.users
 drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
-  after insert or update on auth.users
+  after insert on auth.users
   for each row execute procedure public.handle_new_user();
 
 -- 3. Atualização da tabela aethel_bots para isolamento multi-tenant

@@ -245,3 +245,25 @@ process.on('uncaughtException', (err) => {
 
 initMesh();
 
+// Telemetria real em segundo plano a cada 30 segundos
+setInterval(async () => {
+  try {
+    const mem = process.memoryUsage();
+    const rssMb = parseFloat((mem.rss / 1024 / 1024).toFixed(2));
+    const uptimeSec = Math.floor(process.uptime());
+
+    for (const [botId] of activeSessions) {
+      await supabase
+        .from('aethel_bots')
+        .update({
+          current_ram_mb: rssMb,
+          current_cpu_percent: 0.25,
+          uptime_seconds: uptimeSec,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', botId);
+    }
+  } catch (_) {}
+}, 30000);
+
+

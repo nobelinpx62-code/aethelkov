@@ -8,6 +8,7 @@ interface BotGridProps {
   bots: AethelBot[];
   selectedBotId: string | null;
   onSelectBot: (botId: string) => void;
+  onOpenDetails: (botId: string) => void;
   onToggleStatus: (botId: string, currentStatus: string) => void;
   onDeleteBot: (botId: string) => void;
   onSetupTelegram: (botId: string) => void;
@@ -17,6 +18,7 @@ export const BotGrid: React.FC<BotGridProps> = ({
   bots,
   selectedBotId,
   onSelectBot,
+  onOpenDetails,
   onToggleStatus,
   onDeleteBot,
   onSetupTelegram,
@@ -45,8 +47,8 @@ export const BotGrid: React.FC<BotGridProps> = ({
         return (
           <div
             key={bot.id}
-            onClick={() => onSelectBot(bot.id)}
-            className={`liquid-glass rounded-2xl p-5 cursor-pointer relative transition-all duration-300 ${
+            onClick={() => onOpenDetails(bot.id)}
+            className={`liquid-glass rounded-2xl p-5 cursor-pointer relative transition-all duration-300 hover:scale-[1.01] ${
               isSelected
                 ? 'ring-2 ring-emerald-500/50 bg-white/[0.07]'
                 : 'hover:border-white/20'
@@ -139,16 +141,17 @@ export const BotGrid: React.FC<BotGridProps> = ({
                   </button>
                 )}
 
-                {/* View Terminal */}
+                {/* View Details */}
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    onSelectBot(bot.id);
+                    onOpenDetails(bot.id);
                   }}
-                  className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-slate-300 transition-colors"
-                  title="Ver Logs no Terminal"
+                  className="px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-400 text-xs font-semibold flex items-center gap-1.5 transition-colors border border-emerald-500/20"
+                  title="Abrir Painel Completo de Telemetria e Logs"
                 >
-                  <Terminal className="w-4 h-4" />
+                  <Terminal className="w-3.5 h-3.5" />
+                  <span>Painel & Telemetria</span>
                 </button>
               </div>
 

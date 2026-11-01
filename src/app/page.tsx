@@ -7,6 +7,7 @@ import { StorageHUD } from '@/components/StorageHUD';
 import { BotGrid } from '@/components/BotGrid';
 import { LiveTerminal } from '@/components/LiveTerminal';
 import { DeployModal } from '@/components/DeployModal';
+import { BotDetailView } from '@/components/BotDetailView';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { ShieldCheck, CheckCircle2 } from 'lucide-react';
 
@@ -23,6 +24,7 @@ export default function DashboardPage() {
   });
 
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
+  const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -107,6 +109,7 @@ export default function DashboardPage() {
   };
 
   const selectedBot = bots.find((b) => b.id === selectedBotId) || (bots.length > 0 ? bots[0] : null);
+  const focusedBot = bots.find((b) => b.id === focusedBotId);
 
   // Calcula total de bytes consumidos no storage
   const totalStorageBytes = bots.reduce((acc, curr) => acc + (curr.storage_size_bytes || 0), 0);
@@ -128,62 +131,76 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {/* Hero Banner / Resumo da Topologia */}
-        <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
-              Aethelkov Control Plane
-            </h1>
-            <p className="text-sm text-slate-400 mt-1">
-              Malha híbrida desacoplada: Presença 24/7 (Discloud Farol) + Execução Serverless (Vercel)
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs font-mono px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <ShieldCheck className="w-4 h-4" />
-            <span>INFRA: R$ 0,00 • ZERO VPS</span>
-          </div>
-        </div>
-
-        {/* Top Metrics Cards */}
-        <MetricsBanner stats={stats} />
-
-        {/* Storage HUD */}
-        <StorageHUD usedBytes={totalStorageBytes} />
-
-        {/* Grid de Instâncias */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white tracking-wide">
-              Instâncias em Execução
-            </h2>
-            <span className="text-xs text-slate-400">
-              {bots.length} {bots.length === 1 ? 'instância' : 'instâncias'} alocadas
-            </span>
-          </div>
-
-          <BotGrid
-            bots={bots}
-            selectedBotId={selectedBotId}
-            onSelectBot={(id) => setSelectedBotId(id)}
+        {focusedBot ? (
+          /* Visualização de Detalhes Estilo Discloud Pro */
+          <BotDetailView
+            bot={focusedBot}
+            onBack={() => setFocusedBotId(null)}
             onToggleStatus={handleToggleStatus}
-            onDeleteBot={handleDeleteBot}
-            onSetupTelegram={handleSetupTelegram}
+            onRefresh={fetchBotsAndStats}
           />
-        </section>
+        ) : (
+          /* Visão Geral do Grid */
+          <>
+            {/* Hero Banner / Resumo da Topologia */}
+            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+              <div>
+                <h1 className="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                  Aethelkov Control Plane
+                </h1>
+                <p className="text-sm text-slate-400 mt-1">
+                  Malha híbrida desacoplada: Presença 24/7 (Discloud Farol) + Execução Serverless (Vercel)
+                </p>
+              </div>
+              <div className="flex items-center gap-2 text-xs font-mono px-3.5 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+                <ShieldCheck className="w-4 h-4" />
+                <span>INFRA: R$ 0,00 • ZERO VPS</span>
+              </div>
+            </div>
 
-        {/* Console de Terminal em Tempo Real */}
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold text-white tracking-wide">
-              Live Console & Gateway Heartbeats
-            </h2>
-            <span className="text-xs text-slate-400 font-mono">
-              Opcode 1 • Realtime Supabase Stream
-            </span>
-          </div>
+            {/* Top Metrics Cards */}
+            <MetricsBanner stats={stats} />
 
-          <LiveTerminal selectedBot={selectedBot} />
-        </section>
+            {/* Storage HUD */}
+            <StorageHUD usedBytes={totalStorageBytes} />
+
+            {/* Grid de Instâncias */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white tracking-wide">
+                  Instâncias em Execução
+                </h2>
+                <span className="text-xs text-slate-400">
+                  {bots.length} {bots.length === 1 ? 'instância' : 'instâncias'} alocadas • Clique para abrir o painel detalhado
+                </span>
+              </div>
+
+              <BotGrid
+                bots={bots}
+                selectedBotId={selectedBotId}
+                onSelectBot={(id) => setSelectedBotId(id)}
+                onOpenDetails={(id) => setFocusedBotId(id)}
+                onToggleStatus={handleToggleStatus}
+                onDeleteBot={handleDeleteBot}
+                onSetupTelegram={handleSetupTelegram}
+              />
+            </section>
+
+            {/* Console de Terminal em Tempo Real */}
+            <section className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold text-white tracking-wide">
+                  Live Console & Gateway Heartbeats
+                </h2>
+                <span className="text-xs text-slate-400 font-mono">
+                  Opcode 1 • Realtime Supabase Stream
+                </span>
+              </div>
+
+              <LiveTerminal selectedBot={selectedBot} />
+            </section>
+          </>
+        )}
       </main>
 
       {/* Deploy Modal */}

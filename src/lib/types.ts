@@ -16,6 +16,10 @@ export interface AethelBot {
   main_file: string;
   config_type: 'aethel' | 'discloud';
   storage_size_bytes?: number;
+  current_ram_mb?: number;
+  current_cpu_percent?: number;
+  uptime_seconds?: number;
+  last_restart_at?: string;
   created_at: string;
   updated_at: string;
 }
@@ -49,4 +53,3 @@ export interface ParsedConfig {
   configType: 'aethel' | 'discloud';
   rawLines: Record<string, string>;
 }
-

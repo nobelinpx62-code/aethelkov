@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef } from 'react';
-import { Zap, Plus, RefreshCw, Bell, Shield, Layers, HardDrive, Terminal } from 'lucide-react';
+import { Zap, Plus, RefreshCw, Bell, Shield, Layers, HardDrive, Terminal, LogOut, User } from 'lucide-react';
 
 interface NavbarProps {
   onOpenDeploy: () => void;
@@ -10,6 +10,9 @@ interface NavbarProps {
   onTriggerAdmin: () => void;
   activeNavTab: 'overview' | 'instances';
   onSelectNavTab: (tab: 'overview' | 'instances') => void;
+  currentUser?: any;
+  onSignOut?: () => void;
+  onOpenAuth?: () => void;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({ 
@@ -19,6 +22,9 @@ export const Navbar: React.FC<NavbarProps> = ({
   onTriggerAdmin,
   activeNavTab,
   onSelectNavTab,
+  currentUser,
+  onSignOut,
+  onOpenAuth,
 }) => {
   const [clickCount, setClickCount] = useState(0);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -96,7 +102,7 @@ export const Navbar: React.FC<NavbarProps> = ({
           </button>
         </div>
 
-        {/* Ações Rápidas & Botão Novo Deploy */}
+        {/* Ações Rápidas, Usuário & Botão Novo Deploy */}
         <div className="flex items-center gap-2">
           <button
             onClick={onRefresh}
@@ -113,6 +119,51 @@ export const Navbar: React.FC<NavbarProps> = ({
             <Plus className="h-4 w-4 text-white" />
             <span className="hidden sm:inline">Nova Instância</span>
           </button>
+
+          {/* Perfil do Usuário Autenticado ou Botão Entrar */}
+          {currentUser ? (
+            <div className="flex items-center gap-2 pl-1 border-l border-white/10 ml-1">
+              <div 
+                className="flex items-center gap-2 py-1 px-2.5 rounded-full bg-white/5 border border-white/10"
+                title={currentUser.email || 'Usuário Autenticado'}
+              >
+                {currentUser.user_metadata?.avatar_url ? (
+                  <img
+                    src={currentUser.user_metadata.avatar_url}
+                    alt="Avatar"
+                    className="w-5 h-5 rounded-full object-cover border border-emerald-400/50"
+                  />
+                ) : (
+                  <div className="w-5 h-5 rounded-full bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+                    <User className="w-3 h-3" />
+                  </div>
+                )}
+                <span className="hidden lg:inline font-mono text-[11px] text-neutral-300 max-w-[100px] truncate">
+                  {currentUser.user_metadata?.full_name || currentUser.user_metadata?.name || currentUser.email?.split('@')[0] || 'Usuário'}
+                </span>
+              </div>
+
+              {onSignOut && (
+                <button
+                  onClick={onSignOut}
+                  className="apple-pill-btn flex h-8 w-8 items-center justify-center rounded-full text-neutral-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors"
+                  title="Sair da conta"
+                >
+                  <LogOut className="w-3.5 h-3.5" />
+                </button>
+              )}
+            </div>
+          ) : (
+            onOpenAuth && (
+              <button
+                onClick={onOpenAuth}
+                className="apple-pill-btn flex items-center gap-1.5 rounded-full px-3.5 py-1.5 font-mono text-xs text-neutral-200 hover:text-white border-white/20 hover:border-white/40 ml-1"
+              >
+                <User className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Entrar</span>
+              </button>
+            )
+          )}
         </div>
       </nav>
     </header>

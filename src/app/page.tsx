@@ -8,8 +8,10 @@ import { DeployModal } from '@/components/DeployModal';
 import { BotDetailView } from '@/components/BotDetailView';
 import { AdminAuthModal } from '@/components/AdminAuthModal';
 import { AdminPanel } from '@/components/AdminPanel';
+import { AuthLandingView } from '@/components/AuthLandingView';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 export default function DashboardPage() {
   const [bots, setBots] = useState<AethelBot[]>([]);
@@ -30,9 +32,39 @@ export default function DashboardPage() {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
 
+  // Estados de Autenticação Supabase (Discord OAuth & E-mail)
+  const [currentUser, setCurrentUser] = useState<any>(null);
+  const [isAuthLoading, setIsAuthLoading] = useState<boolean>(true);
+  const [isDemoMode, setIsDemoMode] = useState<boolean>(false);
+
   // Estados do Modo Admin Secreto
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+
+  // Listener de Autenticação em Tempo Real
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setCurrentUser(session?.user ?? null);
+      setIsAuthLoading(false);
+    });
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setCurrentUser(session?.user ?? null);
+      if (session?.user) {
+        setIsDemoMode(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleSignOut = async () => {
+    await supabase.auth.signOut();
+    setCurrentUser(null);
+    setIsDemoMode(false);
+    setNotification('Você desconectou da sua conta Aethel.');
+    setTimeout(() => setNotification(null), 4000);
+  };
 
   const handleTriggerAdmin = () => {
     if (typeof window !== 'undefined' && sessionStorage.getItem('aethel_admin_auth') === 'true') {
@@ -154,83 +186,99 @@ export default function DashboardPage() {
             setFocusedBotId(null);
             setIsAdminPanelOpen(false);
           }}
+          currentUser={currentUser}
+          onSignOut={handleSignOut}
+          onOpenAuth={() => setIsDemoMode(false)}
         />
 
-        {/* Container Central da Dashboard */}
-        <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-8 pb-20">
-          {/* Notificação Temporária */}
-          {notification && (
-            <div className="mb-6 p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-3 shadow-lg animate-fadeIn">
-              <CheckCircle2 className="w-5 h-5 shrink-0" />
-              <span>{notification}</span>
-            </div>
-          )}
-
-          {isAdminPanelOpen ? (
-            /* Painel Root de Infraestrutura com Várias Abas */
-            <AdminPanel
-              bots={bots}
-              onClose={() => setIsAdminPanelOpen(false)}
-              onRefreshBots={fetchBotsAndStats}
-              onDeleteBot={handleDeleteBot}
-              onToggleBotStatus={handleToggleStatus}
+        {!currentUser && !isDemoMode ? (
+          /* Página Inicial / Conhecer a Aethel & Login Dividido (Carrossel + Auth) */
+          <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-4 pb-16 animate-fadeIn">
+            <AuthLandingView
+              onBypassToDemo={() => setIsDemoMode(true)}
+              onLoginSuccess={() => {
+                setIsDemoMode(false);
+                fetchBotsAndStats();
+              }}
             />
-          ) : focusedBot ? (
-            /* Visualização Detalhada da Instância */
-            <BotDetailView
-              bot={focusedBot}
-              onBack={() => setFocusedBotId(null)}
-              onToggleStatus={handleToggleStatus}
-              onRefresh={fetchBotsAndStats}
-              onDeleteBot={handleDeleteBot}
-            />
-          ) : (
-            /* Visão Geral (Apple Liquid Dashboard) */
-            <div className="space-y-8 animate-fadeIn">
-              {/* Linha Superior de Boas-Vindas e Ação Rápida */}
-              <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                <div>
-                  <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.03em] text-white">
-                    Painel Operacional
-                  </h1>
-                  <p className="text-sm text-neutral-400 mt-1">
-                    Gerenciamento de aplicações via <span className="text-white font-mono">aethel.config</span>
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={() => setIsDeployOpen(true)}
-                    className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold tracking-wide text-white"
-                  >
-                    <Plus className="h-4 w-4" />
-                    <span>Nova Instância</span>
-                  </button>
-                </div>
-              </section>
-
-              {/* Cartões de Telemetria e Alocação */}
-              {activeNavTab === 'overview' && (
-                <section className="w-full">
-                  <MetricsBanner stats={stats} bots={bots} />
-                </section>
-              )}
-
-              {/* Lista Principal de Instâncias (Largura Total Ampla) */}
-              <div className="w-full">
-                <BotGrid
-                  bots={bots}
-                  selectedBotId={selectedBotId}
-                  onSelectBot={(id) => setSelectedBotId(id)}
-                  onOpenDetails={(id) => setFocusedBotId(id)}
-                  onToggleStatus={handleToggleStatus}
-                  onDeleteBot={handleDeleteBot}
-                  onSetupTelegram={handleSetupTelegram}
-                />
+          </main>
+        ) : (
+          /* Container Central da Dashboard */
+          <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-8 pb-20 animate-fadeIn">
+            {/* Notificação Temporária */}
+            {notification && (
+              <div className="mb-6 p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-3 shadow-lg animate-fadeIn">
+                <CheckCircle2 className="w-5 h-5 shrink-0" />
+                <span>{notification}</span>
               </div>
-            </div>
-          )}
-        </main>
+            )}
+
+            {isAdminPanelOpen ? (
+              /* Painel Root de Infraestrutura com Várias Abas */
+              <AdminPanel
+                bots={bots}
+                onClose={() => setIsAdminPanelOpen(false)}
+                onRefreshBots={fetchBotsAndStats}
+                onDeleteBot={handleDeleteBot}
+                onToggleBotStatus={handleToggleStatus}
+              />
+            ) : focusedBot ? (
+              /* Visualização Detalhada da Instância */
+              <BotDetailView
+                bot={focusedBot}
+                onBack={() => setFocusedBotId(null)}
+                onToggleStatus={handleToggleStatus}
+                onRefresh={fetchBotsAndStats}
+                onDeleteBot={handleDeleteBot}
+              />
+            ) : (
+              /* Visão Geral (Apple Liquid Dashboard) */
+              <div className="space-y-8 animate-fadeIn">
+                {/* Linha Superior de Boas-Vindas e Ação Rápida */}
+                <section className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                  <div>
+                    <h1 className="text-3xl md:text-4xl font-semibold tracking-[-0.03em] text-white">
+                      Painel Operacional
+                    </h1>
+                    <p className="text-sm text-neutral-400 mt-1">
+                      Gerenciamento de aplicações via <span className="text-white font-mono">aethel.config</span>
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      onClick={() => setIsDeployOpen(true)}
+                      className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold tracking-wide text-white"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>Nova Instância</span>
+                    </button>
+                  </div>
+                </section>
+
+                {/* Cartões de Telemetria e Alocação */}
+                {activeNavTab === 'overview' && (
+                  <section className="w-full">
+                    <MetricsBanner stats={stats} bots={bots} />
+                  </section>
+                )}
+
+                {/* Lista Principal de Instâncias (Largura Total Ampla) */}
+                <div className="w-full">
+                  <BotGrid
+                    bots={bots}
+                    selectedBotId={selectedBotId}
+                    onSelectBot={(id) => setSelectedBotId(id)}
+                    onOpenDetails={(id) => setFocusedBotId(id)}
+                    onToggleStatus={handleToggleStatus}
+                    onDeleteBot={handleDeleteBot}
+                    onSetupTelegram={handleSetupTelegram}
+                  />
+                </div>
+              </div>
+            )}
+          </main>
+        )}
 
         {/* Deploy Modal */}
         <DeployModal

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   UploadCloud, 
@@ -38,6 +38,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [inspectedData, setInspectedData] = useState<InspectedBotData | null>(null);
   const [isInspecting, setIsInspecting] = useState(false);
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   // Manual States
   const [name, setName] = useState('');
@@ -46,6 +47,36 @@ export const DeployModal: React.FC<DeployModalProps> = ({
   const [ram, setRam] = useState(100);
   const [mainFile, setMainFile] = useState('index.js');
   const [configType, setConfigType] = useState<'aethel' | 'discloud'>('aethel');
+
+  // Função central para resetar todo o formulário (sem resquícios de deploys anteriores)
+  const resetState = () => {
+    setZipFile(null);
+    setZipToken('');
+    setIsUploading(false);
+    setUploadError(null);
+    setInspectedData(null);
+    setIsInspecting(false);
+    setName('');
+    setPlatform('DISCORD');
+    setToken('');
+    setRam(100);
+    setMainFile('index.js');
+    setConfigType('aethel');
+    setActiveTab('zip');
+    setFileInputKey((k) => k + 1);
+  };
+
+  // Garante que a cada abertura do modal, todos os dados estejam 100% limpos
+  useEffect(() => {
+    if (isOpen) {
+      resetState();
+    }
+  }, [isOpen]);
+
+  const handleClose = () => {
+    resetState();
+    onClose();
+  };
 
   if (!isOpen) return null;
 
@@ -105,6 +136,28 @@ export const DeployModal: React.FC<DeployModalProps> = ({
         throw new Error(data.error || 'Falha no upload');
       }
 
+      // Salva os arquivos extraídos no localStorage para que o Editor abra com o código real
+      if (data.botId && zipFile) {
+        try {
+          const buffer = await zipFile.arrayBuffer();
+          const zip = await JSZip.loadAsync(buffer);
+          const extractedFiles: Record<string, string> = {};
+          for (const [relativePath, zipEntry] of Object.entries(zip.files)) {
+            if (!zipEntry.dir && !relativePath.includes('node_modules') && !relativePath.includes('.git')) {
+              try {
+                extractedFiles[relativePath] = await zipEntry.async('string');
+              } catch (_) {}
+            }
+          }
+          if (Object.keys(extractedFiles).length > 0) {
+            localStorage.setItem(`aethel_bot_files_${data.botId}`, JSON.stringify(extractedFiles));
+          }
+        } catch (zipErr) {
+          console.warn('[DeployModal] Falha ao extrair arquivos para o editor:', zipErr);
+        }
+      }
+
+      resetState();
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -155,6 +208,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
         throw new Error(data.error || 'Falha ao cadastrar instância.');
       }
 
+      resetState();
       onSuccess();
       onClose();
     } catch (err: any) {
@@ -183,7 +237,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
           </div>
 
           <button
-            onClick={onClose}
+            onClick={handleClose}
             className="p-1.5 rounded-full hover:bg-white/10 text-neutral-400 hover:text-white transition-colors"
           >
             <X className="w-5 h-5" />
@@ -238,6 +292,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                 </label>
                 <div className="relative border-2 border-dashed border-white/15 hover:border-cyan-400/50 rounded-2xl p-6 text-center transition-colors bg-black/40">
                   <input
+                    key={fileInputKey}
                     type="file"
                     accept=".zip"
                     required

@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { AethelBot, AethelLog } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { BotFileEditor } from './BotFileEditor';
+import JSZip from 'jszip';
 import { 
   Menu,
   X,
@@ -335,6 +336,25 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Falha ao processar commit');
+      }
+
+      // Atualiza os arquivos reais do bot no localStorage a partir do novo ZIP
+      try {
+        const buffer = await commitZipFile.arrayBuffer();
+        const zip = await JSZip.loadAsync(buffer);
+        const extracted: Record<string, string> = {};
+        for (const [relativePath, entry] of Object.entries(zip.files)) {
+          if (!entry.dir && !relativePath.includes('node_modules') && !relativePath.includes('.git')) {
+            try {
+              extracted[relativePath] = await entry.async('string');
+            } catch (_) {}
+          }
+        }
+        if (Object.keys(extracted).length > 0) {
+          localStorage.setItem(`aethel_bot_files_${bot.id}`, JSON.stringify(extracted));
+        }
+      } catch (zipErr) {
+        console.warn('[BotDetailView] Falha ao extrair arquivos do commit:', zipErr);
       }
 
       setCommitSuccess('Commit realizado com sucesso! Instância reiniciada e código atualizado.');
@@ -1145,11 +1165,13 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
          ======================================================== */}
       {activeTab === 'files' && (
         <BotFileEditor
+          botId={bot.id}
           botName={bot.bot_name}
-          mainFile={bot.main_file || 'index.js'}
+          mainFile={bot.main_file || 'bot.js'}
           tokenEncrypted={bot.token_encrypted}
           ramLimitMb={bot.ram_limit_mb || 100}
           platform={bot.platform}
+          configType={bot.config_type || 'discloud'}
           onSave={handleSaveFileContent}
           isSaving={isSavingFile}
           saveToast={fileSaveToast}

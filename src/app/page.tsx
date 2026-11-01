@@ -399,15 +399,17 @@ export default function DashboardPage() {
         />
 
         {/* Deploy Modal */}
-        <DeployModal
-          isOpen={isDeployOpen}
-          onClose={() => setIsDeployOpen(false)}
-          onSuccess={() => {
-            fetchBotsAndStats();
-            setNotification('🚀 Instância implantada com sucesso na malha Aethelkov!');
-            setTimeout(() => setNotification(null), 5000);
-          }}
-        />
+        {isDeployOpen && (
+          <DeployModal
+            isOpen={isDeployOpen}
+            onClose={() => setIsDeployOpen(false)}
+            onSuccess={() => {
+              fetchBotsAndStats();
+              setNotification('🚀 Instância implantada com sucesso na malha Aethelkov!');
+              setTimeout(() => setNotification(null), 5000);
+            }}
+          />
+        )}
 
         {/* Modal de Autenticação Admin para Casos Alternativos */}
         <AdminAuthModal

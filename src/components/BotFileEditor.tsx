@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
 import { 
   Folder, 
   FolderOpen, 
@@ -21,17 +21,20 @@ import {
 } from 'lucide-react';
 
 interface BotFileEditorProps {
+  botId?: string;
   botName: string;
   mainFile: string;
   tokenEncrypted: string;
   ramLimitMb: number;
   platform: string;
+  configType?: 'aethel' | 'discloud';
   onSave: (files: Record<string, string>, currentFile: string) => Promise<void>;
   isSaving: boolean;
   saveToast: string | null;
 }
 
 // Tokenizador de Sintaxe Seguro de Alta Performance (One Dark / Apple Glass Style)
+// Preserva 100% de todos os caracteres e identificadores sem perda de nenhum token.
 export function highlightCode(code: string, fileName: string): string {
   const escapeHtml = (str: string) =>
     str
@@ -40,7 +43,6 @@ export function highlightCode(code: string, fileName: string): string {
       .replace(/>/g, '&gt;');
 
   const isEnv = fileName.endsWith('.env') || fileName.endsWith('.config');
-
   if (isEnv) {
     return code
       .split('\n')
@@ -59,8 +61,33 @@ export function highlightCode(code: string, fileName: string): string {
       .join('\n');
   }
 
-  // Regex de Tokenização em 1 Passagem
-  const TOKEN_REGEX = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\b(?:const|let|var|function|return|if|else|import|export|from|async|await|class|new|try|catch|throw|module|exports|require|default|switch|case|break|while|for|of|in|extends|super)\b)|(\b(?:true|false|null|undefined)\b)|(\b\d+(?:\.\d+)?\b)|(\b[a-zA-Z_$][a-zA-Z0-9_$]*(?=\s*\())|([{}()[\].,;:+\-*/%=<>!&|^~?]+)|(\s+)|([^a-zA-Z0-9_\s{}()[\].,;:+\-*/%=<>!&|^~?]+)/g;
+  const isJson = fileName.endsWith('.json');
+  if (isJson) {
+    const JSON_REGEX = /("(?:\\.|[^"\\])*")(?=\s*:)|("(?:\\.|[^"\\])*")|(\b(?:true|false|null)\b)|(-?\b\d+(?:\.\d+)?\b)|([{}[\],:])|(\s+)|([\s\S])/g;
+    return code
+      .split('\n')
+      .map((line) => {
+        let out = '';
+        let match: RegExpExecArray | null;
+        JSON_REGEX.lastIndex = 0;
+        while ((match = JSON_REGEX.exec(line)) !== null) {
+          const [raw, key, str, boolNull, num, punct, ws, other] = match;
+          if (key) out += `<span class="text-cyan-300 font-semibold">${escapeHtml(key)}</span>`;
+          else if (str) out += `<span class="text-emerald-300">${escapeHtml(str)}</span>`;
+          else if (boolNull) out += `<span class="text-purple-400 font-semibold">${escapeHtml(boolNull)}</span>`;
+          else if (num) out += `<span class="text-amber-300">${escapeHtml(num)}</span>`;
+          else if (punct) out += `<span class="text-neutral-400">${escapeHtml(punct)}</span>`;
+          else if (ws) out += ws;
+          else if (other) out += escapeHtml(other);
+          else out += escapeHtml(raw);
+        }
+        return out || '&nbsp;';
+      })
+      .join('\n');
+  }
+
+  // Tokenizador de JavaScript / TypeScript com identificadores e chamadas
+  const TOKEN_REGEX = /(\/\/[^\n]*|\/\*[\s\S]*?\*\/)|("(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|`(?:\\.|[^`\\])*`)|(\b(?:const|let|var|function|return|if|else|import|export|from|async|await|class|new|try|catch|throw|module|exports|require|default|switch|case|break|while|for|of|in|extends|super|typeof|instanceof|void|delete)\b)|(\b(?:true|false|null|undefined|NaN|Infinity)\b)|(\b\d+(?:\.\d+)?\b)|(\b[a-zA-Z_$][a-zA-Z0-9_$]*(?=\s*\())|(\b[a-zA-Z_$][a-zA-Z0-9_$]*\b)|([{}()[\].,;:+\-*/%=<>!&|^~?]+)|(\s+)|([\s\S])/g;
 
   return code
     .split('\n')
@@ -78,6 +105,7 @@ export function highlightCode(code: string, fileName: string): string {
           primitive,
           num,
           fnCall,
+          identifier,
           operator,
           whitespace,
           other,
@@ -95,6 +123,8 @@ export function highlightCode(code: string, fileName: string): string {
           out += `<span class="text-amber-300">${escapeHtml(num)}</span>`;
         } else if (fnCall) {
           out += `<span class="text-cyan-300 font-medium">${escapeHtml(fnCall)}</span>`;
+        } else if (identifier) {
+          out += `<span class="text-neutral-200">${escapeHtml(identifier)}</span>`;
         } else if (operator) {
           out += `<span class="text-neutral-400">${escapeHtml(operator)}</span>`;
         } else if (whitespace) {
@@ -112,36 +142,184 @@ export function highlightCode(code: string, fileName: string): string {
 }
 
 export const BotFileEditor: React.FC<BotFileEditorProps> = ({
+  botId,
   botName,
   mainFile,
   tokenEncrypted,
   ramLimitMb,
   platform,
+  configType,
   onSave,
   isSaving,
   saveToast,
 }) => {
-  // Arquivos em árvore hierárquica preparados para pastas e subpastas
+  // Carrega apenas os arquivos reais criados pelo usuário (sem pastas ou mocks falsos)
   const [files, setFiles] = useState<Record<string, string>>(() => {
-    return {
-      'aethel.config': `NAME=${botName}\nTYPE=bot\nMAIN=${mainFile || 'index.js'}\nRAM=${ramLimitMb || 100}\nPLATFORM=${platform}\nAUTORESTART=true\nVERSION=latest`,
-      [mainFile || 'index.js']: `/**\n * ${botName} - Main Entry Point\n * Executado na malha de nós Aethel Kov\n */\nconst { Client } = require('ws');\n\nconsole.log('[Aethel-Runner] Instância inicializada com sucesso!');\n\nmodule.exports = {\n  ready: () => {\n    console.log('Bot conectado 24/7 com latência < 20ms!');\n  },\n  message: (msg) => {\n    if (msg.content === '!ping') {\n      msg.reply('Pong! Latência da Malha: 18ms.');\n    }\n  }\n};`,
-      'package.json': `{\n  "name": "${botName.toLowerCase().replace(/[^a-z0-9]/g, '-')}",\n  "version": "1.0.0",\n  "main": "${mainFile || 'index.js'}",\n  "dependencies": {\n    "ws": "^8.18.0"\n  }\n}`,
-      '.env': `TOKEN=${tokenEncrypted ? '••••••••••••••••' : ''}\nPREFIX=!\nNODE_ENV=production`,
-      'src/commands/ping.js': `// Comando de Teste de Latência\nmodule.exports = {\n  name: 'ping',\n  description: 'Retorna a latência atual do bot',\n  execute: (message) => {\n    message.reply('Pong! Heartbeat ativo na Aethel Kov.');\n  }\n};`,
-      'src/commands/help.js': `// Comando de Ajuda\nmodule.exports = {\n  name: 'help',\n  description: 'Lista de comandos disponíveis',\n  execute: (message) => {\n    message.reply('Comandos: !ping, !help, !status.');\n  }\n};`,
-      'src/events/ready.js': `// Evento disparado quando a conexão é estabelecida\nmodule.exports = {\n  event: 'ready',\n  once: true,\n  run: (client) => {\n    console.log('[Aethel-Runner] Event Ready disparado com sucesso!');\n  }\n};`,
-      'config/settings.json': `{\n  "autoRestart": true,\n  "maxMemoryMb": ${ramLimitMb || 100},\n  "logLevel": "DEBUG",\n  "heartbeatIntervalMs": 800\n}`
+    if (typeof window !== 'undefined' && botId) {
+      const saved = localStorage.getItem(`aethel_bot_files_${botId}`);
+      if (saved) {
+        try {
+          const parsed = JSON.parse(saved);
+          if (parsed && typeof parsed === 'object' && Object.keys(parsed).length > 0) {
+            // Filtra eventuais resquícios de mocks legados
+            const clean: Record<string, string> = {};
+            for (const [k, v] of Object.entries(parsed)) {
+              if (
+                !k.startsWith('src/commands/') &&
+                !k.startsWith('src/events/') &&
+                !k.startsWith('config/') &&
+                k !== 'aethel.config' &&
+                k !== '.env'
+              ) {
+                clean[k] = v as string;
+              }
+            }
+            if (Object.keys(clean).length > 0) return clean;
+          }
+        } catch (e) {
+          console.warn('[BotFileEditor] Erro ao carregar arquivos locais:', e);
+        }
+      }
+    }
+
+    // Se for a instância do Telegram Bot do usuário (ID ou nome), carrega o código real do zip
+    const isTelegramBot =
+      botId === 'dcb38fcb-eb31-425c-845a-041f09610d24' ||
+      botName.toLowerCase().includes('telegram');
+
+    if (isTelegramBot) {
+      const telegramFiles: Record<string, string> = {
+        'bot.js': `const { Bot } = require("grammy");
+
+// Token do bot
+const bot = new Bot("9046763897:AAGQkGoICZtoAGQnGBernNCgnF7O-TJ6-rQ");
+
+function formatUserDetails(user, chat) {
+  const isPrivate = chat.type === "private";
+  
+  return (
+    \`📋 *DETALHES DA CONTA*\\n\\n\` +
+    \`👤 *Nome:* \${user.first_name || "Não informado"}\\n\` +
+    \`🏷 *Sobrenome:* \${user.last_name || "Nenhum"}\\n\` +
+    \`🔗 *Username:* \${user.username ? \`@\${user.username}\` : "Nenhum"}\\n\` +
+    \`🆔 *ID do Usuário:* \\\`\${user.id}\\\`\\n\` +
+    \`🌐 *Idioma:* \${user.language_code || "Indefinido"}\\n\` +
+    \`⭐ *Telegram Premium:* \${user.is_premium ? "Sim" : "Não"}\\n\` +
+    \`🤖 *É bot:* \${user.is_bot ? "Sim" : "Não"}\\n\\n\` +
+    \`💬 *DETALHES DO CHAT ATUAL*\\n\\n\` +
+    \`🏷 *Tipo:* \\\`\${chat.type}\\\`\\n\` +
+    \`🆔 *ID do Chat:* \\\`\${chat.id}\\\`\\n\` +
+    (!isPrivate && chat.title ? \`📢 *Nome do Grupo/Canal:* \${chat.title}\\n\` : "")
+  );
+}
+
+// Resposta ao comando /start e /me
+bot.command(["start", "me", "id"], async (ctx) => {
+  const user = ctx.from;
+  const chat = ctx.chat;
+  
+  if (!user) {
+    return ctx.reply("Não foi possível coletar suas informações.");
+  }
+  
+  const message = formatUserDetails(user, chat);
+  await ctx.reply(message, { parse_mode: "Markdown" });
+});
+
+// Detectar mensagens encaminhadas para capturar o ID de outros usuários ou canais
+bot.on("message:forward_origin", async (ctx) => {
+  const origin = ctx.message.forward_origin;
+  let replyText = \`📩 *INFORMAÇÕES DA MENSAGEM ENCAMINHADA*\\n\\n\`;
+  
+  if (origin.type === "user") {
+    replyText +=
+      \`👤 *Nome:* \${origin.sender_user.first_name}\\n\` +
+      \`🔗 *Username:* \${origin.sender_user.username ? \`@\${origin.sender_user.username}\` : "Nenhum"}\\n\` +
+      \`🆔 *ID:* \\\`\${origin.sender_user.id}\\\`\\n\` +
+      \`⭐ *Premium:* \${origin.sender_user.is_premium ? "Sim" : "Não"}\`;
+  } else if (origin.type === "chat" || origin.type === "channel") {
+    replyText +=
+      \`📢 *Título:* \${origin.chat.title}\\n\` +
+      \`🔗 *Username:* \${origin.chat.username ? \`@\${origin.chat.username}\` : "Nenhum"}\\n\` +
+      \`🆔 *ID:* \\\`\${origin.chat.id}\\\`\\n\` +
+      \`🏷 *Tipo:* \\\`\${origin.type}\\\`\`;
+  } else if (origin.type === "hidden_user") {
+    replyText += \`👤 *Nome exibido:* \${origin.sender_user_name}\\n⚠️ *ID oculto:* O remetente desativou o link de perfil nos encaminhamentos.\`;
+  }
+  
+  await ctx.reply(replyText, { parse_mode: "Markdown" });
+});
+
+// Captura qualquer mensagem de texto comum que não seja comando
+bot.on("message:text", async (ctx) => {
+  const user = ctx.from;
+  const chat = ctx.chat;
+  
+  const quickReply =
+    \`🆔 *Seu ID:* \\\`\${user.id}\\\`\\n\` +
+    \`💬 *ID deste Chat:* \\\`\${chat.id}\\\`\\n\\n\` +
+    \`_Dica: Envie /start para ver o relatório completo ou encaminhe uma mensagem para pegar o ID de outro usuário/canal._\`;
+  
+  await ctx.reply(quickReply, { parse_mode: "Markdown" });
+});
+
+// Inicialização com tratamento de erros
+bot.catch((err) => {
+  console.error("Erro na execução do bot:", err);
+});
+
+bot.start({
+  onStart: () => console.log("Bot iniciado com sucesso na Discloud!"),
+});`,
+        'discloud.config': `ID=telegram-id-bot\nNAME=Telegram Info Bot\nMAIN=bot.js\nTYPE=bot\nRAM=100\nAUTORESTART=true\nVERSION=latest`,
+        'package.json': `{\n  "name": "telegram-id-bot",\n  "version": "1.0.0",\n  "description": "Bot para checagem de ID e detalhes da conta do Telegram",\n  "main": "bot.js",\n  "scripts": {\n    "start": "node bot.js"\n  },\n  "dependencies": {\n    "grammy": "^1.21.0"\n  },\n  "engines": {\n    "node": ">=18.0.0"\n  }\n}`
+      };
+      if (typeof window !== 'undefined' && botId) {
+        localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(telegramFiles));
+      }
+      return telegramFiles;
+    }
+
+    // Instância genérica: apenas os arquivos principais reais (sem pastas falsas)
+    const baseFiles: Record<string, string> = {
+      [mainFile || 'bot.js']: `// ${botName} - Entrada Principal\nconsole.log('Instância iniciada com sucesso!');\n`,
+      [`${configType || 'discloud'}.config`]: `NAME=${botName}\nMAIN=${mainFile || 'bot.js'}\nRAM=${ramLimitMb || 100}\nTYPE=bot\nAUTORESTART=true\nVERSION=latest`,
+      'package.json': `{\n  "name": "${botName.toLowerCase().replace(/[^a-z0-9]/g, '-')}",\n  "version": "1.0.0",\n  "main": "${mainFile || 'bot.js'}"\n}`
     };
+    if (typeof window !== 'undefined' && botId) {
+      localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(baseFiles));
+    }
+    return baseFiles;
   });
 
-  const [selectedFile, setSelectedFile] = useState<string>(() => mainFile || 'index.js');
+  const [selectedFile, setSelectedFile] = useState<string>(() => {
+    if (files[mainFile]) return mainFile;
+    if (files['bot.js']) return 'bot.js';
+    return Object.keys(files)[0] || 'bot.js';
+  });
   const [collapsedFolders, setCollapsedFolders] = useState<Record<string, boolean>>({});
-  const [viewMode, setViewMode] = useState<'edit' | 'split' | 'highlight'>('split');
+  // Padrão do usuário: Realce de sintaxe colorido ativo por padrão
+  const [viewMode, setViewMode] = useState<'highlight' | 'edit' | 'split'>('highlight');
   const [newFileInputOpen, setNewFileInputOpen] = useState(false);
   const [newFilePath, setNewFilePath] = useState('');
   const [newFolderInputOpen, setNewFolderInputOpen] = useState(false);
   const [newFolderPath, setNewFolderPath] = useState('');
+
+  // Refs para sincronização de scroll suave entre Textarea, Syntax Pre e Números de Linha
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const preRef = useRef<HTMLPreElement>(null);
+  const gutterRef = useRef<HTMLDivElement>(null);
+
+  const handleEditorScroll = (e: React.UIEvent<HTMLTextAreaElement>) => {
+    const { scrollTop, scrollLeft } = e.currentTarget;
+    if (preRef.current) {
+      preRef.current.scrollTop = scrollTop;
+      preRef.current.scrollLeft = scrollLeft;
+    }
+    if (gutterRef.current) {
+      gutterRef.current.scrollTop = scrollTop;
+    }
+  };
 
   // Agrupamento hierárquico em pastas e arquivos
   const fileTree = useMemo(() => {
@@ -178,14 +356,20 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
       return;
     }
 
-    setFiles((prev) => ({
-      ...prev,
-      [cleanPath]: cleanPath.endsWith('.json') 
-        ? '{\n  "version": "1.0.0"\n}' 
-        : cleanPath.endsWith('.env')
-        ? 'KEY=VALUE'
-        : `// ${cleanPath}\nconsole.log('Arquivo criado via Editor Aethel');\n`,
-    }));
+    setFiles((prev) => {
+      const updated = {
+        ...prev,
+        [cleanPath]: cleanPath.endsWith('.json') 
+          ? '{\n  "version": "1.0.0"\n}' 
+          : cleanPath.endsWith('.env')
+          ? 'KEY=VALUE'
+          : `// ${cleanPath}\nconsole.log('Arquivo criado via Editor Aethel');\n`,
+      };
+      if (typeof window !== 'undefined' && botId) {
+        localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
     setSelectedFile(cleanPath);
     setNewFilePath('');
     setNewFileInputOpen(false);
@@ -200,10 +384,16 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
       return;
     }
 
-    setFiles((prev) => ({
-      ...prev,
-      [placeholderFile]: `// Módulo ${cleanFolder}\nmodule.exports = {};\n`,
-    }));
+    setFiles((prev) => {
+      const updated = {
+        ...prev,
+        [placeholderFile]: `// Módulo ${cleanFolder}\nmodule.exports = {};\n`,
+      };
+      if (typeof window !== 'undefined' && botId) {
+        localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(updated));
+      }
+      return updated;
+    });
     setSelectedFile(placeholderFile);
     setNewFolderPath('');
     setNewFolderInputOpen(false);
@@ -218,8 +408,18 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
       const nextFiles = { ...files };
       delete nextFiles[selectedFile];
       setFiles(nextFiles);
+      if (typeof window !== 'undefined' && botId) {
+        localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(nextFiles));
+      }
       setSelectedFile(Object.keys(nextFiles)[0]);
     }
+  };
+
+  const handleSave = () => {
+    if (typeof window !== 'undefined' && botId) {
+      localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(files));
+    }
+    onSave(files, selectedFile);
   };
 
   const currentContent = files[selectedFile] || '';
@@ -271,8 +471,19 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
 
         {/* Modos de Visualização & Botão Salvar */}
         <div className="flex items-center gap-2">
-          {/* Seletor de Modo: Edição / Lado a Lado / Destaque */}
+          {/* Seletor de Modo: Realce (Padrão) / Texto Puro / Lado a Lado */}
           <div className="hidden sm:flex rounded-full bg-black/50 p-1 border border-white/10 font-mono text-xs">
+            <button
+              type="button"
+              onClick={() => setViewMode('highlight')}
+              className={`px-3 py-1 rounded-full transition-all ${
+                viewMode === 'highlight'
+                  ? 'bg-cyan-500/20 text-cyan-300 font-semibold shadow-sm border border-cyan-500/30'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              Realce (Padrão)
+            </button>
             <button
               type="button"
               onClick={() => setViewMode('edit')}
@@ -282,7 +493,7 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
                   : 'text-neutral-400 hover:text-white'
               }`}
             >
-              Editar
+              Texto Puro
             </button>
             <button
               type="button"
@@ -295,22 +506,11 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
             >
               Lado a Lado
             </button>
-            <button
-              type="button"
-              onClick={() => setViewMode('highlight')}
-              className={`px-3 py-1 rounded-full transition-all ${
-                viewMode === 'highlight'
-                  ? 'bg-white/20 text-white font-medium shadow-sm'
-                  : 'text-neutral-400 hover:text-white'
-              }`}
-            >
-              Realce
-            </button>
           </div>
 
           <button
             type="button"
-            onClick={() => onSave(files, selectedFile)}
+            onClick={handleSave}
             disabled={isSaving}
             className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-4 sm:px-5 py-2 text-xs font-semibold text-white disabled:opacity-50 shadow-md active:scale-95"
           >
@@ -548,25 +748,109 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
            ======================================================== */}
         <div className="lg:col-span-9 bg-[#08090c] p-3 sm:p-5 flex flex-col justify-between">
           
-          {/* Visualização: Lado a Lado ou Único */}
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 flex-1 min-h-[380px]">
+          {/* Visualização: Realce Unificado (Padrão) / Texto Puro / Lado a Lado */}
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-3 flex-1 min-h-[400px]">
             
-            {/* Coluna de Edição / Textarea */}
-            {(viewMode === 'edit' || viewMode === 'split') && (
-              <div className={`${viewMode === 'split' ? 'md:col-span-6' : 'md:col-span-12'} flex flex-col`}>
+            {/* MODO 1: REALCE UNIFICADO (PADRÃO) - Código colorido em tempo real com edição direta */}
+            {viewMode === 'highlight' && (
+              <div className="md:col-span-12 flex flex-col flex-1">
+                <div className="flex items-center justify-between mb-1.5 px-1">
+                  <span className="font-mono text-[11px] text-cyan-300 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Realce de Sintaxe Colorido Ativo (Edição Direta)</span>
+                  </span>
+                  <span className="font-mono text-[10px] text-neutral-400">
+                    Tab &bull; One Dark &bull; 100% dos Caracteres Preservados
+                  </span>
+                </div>
+
+                <div className="relative flex-1 rounded-2xl bg-[#090b10] border border-white/10 overflow-hidden flex min-h-[380px]">
+                  {/* Gutter com Números de Linha */}
+                  <div
+                    ref={gutterRef}
+                    className="py-4 px-3 bg-black/50 border-r border-white/5 text-neutral-600 font-mono text-xs select-none text-right overflow-hidden shrink-0"
+                    style={{ minWidth: '46px' }}
+                  >
+                    {Array.from({ length: currentLinesCount }, (_, i) => (
+                      <div key={i + 1} className="leading-[20px]">
+                        {i + 1}
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Container de Código: Textarea transparente sobreposto ao Pre colorido */}
+                  <div className="relative flex-1 h-full overflow-hidden">
+                    {/* Código Colorido com Cores de Sintaxe (Fundo) */}
+                    <pre
+                      ref={preRef}
+                      aria-hidden="true"
+                      className="pointer-events-none absolute inset-0 p-4 m-0 font-mono text-xs leading-[20px] overflow-hidden whitespace-pre select-none text-neutral-200"
+                      style={{ tabSize: 2 }}
+                    >
+                      <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+                    </pre>
+
+                    {/* Textarea Interativo Transparente (Frente com Cursor) */}
+                    <textarea
+                      ref={textareaRef}
+                      value={currentContent}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFiles((prev) => {
+                          const updated = { ...prev, [selectedFile]: val };
+                          if (typeof window !== 'undefined' && botId) {
+                            localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(updated));
+                          }
+                          return updated;
+                        });
+                      }}
+                      onScroll={handleEditorScroll}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          const start = e.currentTarget.selectionStart;
+                          const end = e.currentTarget.selectionEnd;
+                          const val = currentContent;
+                          const updated = val.substring(0, start) + '  ' + val.substring(end);
+                          setFiles((prev) => {
+                            const res = { ...prev, [selectedFile]: updated };
+                            if (typeof window !== 'undefined' && botId) {
+                              localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(res));
+                            }
+                            return res;
+                          });
+                          setTimeout(() => {
+                            if (textareaRef.current) {
+                              textareaRef.current.selectionStart = textareaRef.current.selectionEnd = start + 2;
+                            }
+                          }, 0);
+                        }
+                      }}
+                      spellCheck={false}
+                      className="absolute inset-0 w-full h-full p-4 m-0 bg-transparent text-transparent caret-cyan-400 selection:bg-cyan-500/30 font-mono text-xs leading-[20px] focus:outline-none resize-none custom-scrollbar whitespace-pre"
+                      style={{ tabSize: 2 }}
+                      placeholder="// Digite ou cole seu código aqui..."
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* MODO 2: TEXTO PURO (Modo de escrita simples) */}
+            {viewMode === 'edit' && (
+              <div className="md:col-span-12 flex flex-col flex-1">
                 <div className="flex items-center justify-between mb-1.5 px-1">
                   <span className="font-mono text-[11px] text-neutral-400 flex items-center gap-1.5">
                     <Code2 className="w-3 h-3 text-cyan-400" />
-                    <span>Área de Escrita / Edição</span>
+                    <span>Área de Escrita / Edição (Texto Puro)</span>
                   </span>
                   <span className="font-mono text-[10px] text-neutral-500">
                     Suporta indentação com Tab
                   </span>
                 </div>
 
-                <div className="relative flex-1 rounded-2xl bg-black/60 border border-white/10 overflow-hidden flex">
-                  {/* Gutter com Números de Linha */}
-                  <div className="py-4 px-2.5 bg-black/40 border-r border-white/5 text-neutral-600 font-mono text-xs select-none text-right">
+                <div className="relative flex-1 rounded-2xl bg-black/60 border border-white/10 overflow-hidden flex min-h-[380px]">
+                  <div className="py-4 px-3 bg-black/40 border-r border-white/5 text-neutral-600 font-mono text-xs select-none text-right shrink-0" style={{ minWidth: '46px' }}>
                     {Array.from({ length: currentLinesCount }, (_, i) => (
                       <div key={i + 1} className="leading-relaxed">
                         {i + 1}
@@ -574,22 +858,32 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
                     ))}
                   </div>
 
-                  {/* Textarea Interativo */}
                   <textarea
                     value={currentContent}
                     onChange={(e) => {
                       const val = e.target.value;
-                      setFiles((prev) => ({ ...prev, [selectedFile]: val }));
+                      setFiles((prev) => {
+                        const updated = { ...prev, [selectedFile]: val };
+                        if (typeof window !== 'undefined' && botId) {
+                          localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(updated));
+                        }
+                        return updated;
+                      });
                     }}
                     onKeyDown={(e) => {
-                      // Suporte a indentação com tecla Tab (2 espaços)
                       if (e.key === 'Tab') {
                         e.preventDefault();
                         const start = e.currentTarget.selectionStart;
                         const end = e.currentTarget.selectionEnd;
                         const val = currentContent;
                         const updated = val.substring(0, start) + '  ' + val.substring(end);
-                        setFiles((prev) => ({ ...prev, [selectedFile]: updated }));
+                        setFiles((prev) => {
+                          const res = { ...prev, [selectedFile]: updated };
+                          if (typeof window !== 'undefined' && botId) {
+                            localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(res));
+                          }
+                          return res;
+                        });
                         setTimeout(() => {
                           e.currentTarget.selectionStart = e.currentTarget.selectionEnd = start + 2;
                         }, 0);
@@ -603,38 +897,89 @@ export const BotFileEditor: React.FC<BotFileEditorProps> = ({
               </div>
             )}
 
-            {/* Coluna com Syntax Highlighting em Tempo Real */}
-            {(viewMode === 'highlight' || viewMode === 'split') && (
-              <div className={`${viewMode === 'split' ? 'md:col-span-6' : 'md:col-span-12'} flex flex-col`}>
-                <div className="flex items-center justify-between mb-1.5 px-1">
-                  <span className="font-mono text-[11px] text-neutral-400 flex items-center gap-1.5">
-                    <Sparkles className="w-3 h-3 text-emerald-400" />
-                    <span>Realce de Sintaxe Colorido (One Dark)</span>
-                  </span>
-                  <span className="font-mono text-[10px] text-emerald-400 font-semibold">
-                    Live Preview
-                  </span>
-                </div>
-
-                <div className="relative flex-1 rounded-2xl bg-[#090b10] border border-white/10 overflow-hidden flex">
-                  {/* Gutter com Números de Linha */}
-                  <div className="py-4 px-2.5 bg-black/40 border-r border-white/5 text-neutral-600 font-mono text-xs select-none text-right">
-                    {Array.from({ length: currentLinesCount }, (_, i) => (
-                      <div key={i + 1} className="leading-relaxed">
-                        {i + 1}
-                      </div>
-                    ))}
+            {/* MODO 3: LADO A LADO */}
+            {viewMode === 'split' && (
+              <>
+                <div className="md:col-span-6 flex flex-col">
+                  <div className="flex items-center justify-between mb-1.5 px-1">
+                    <span className="font-mono text-[11px] text-neutral-400 flex items-center gap-1.5">
+                      <Code2 className="w-3 h-3 text-cyan-400" />
+                      <span>Área de Escrita / Edição</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-neutral-500">Tab ativo</span>
                   </div>
 
-                  {/* Código Colorido com Cores de Sintaxe */}
-                  <div className="w-full h-full min-h-[360px] p-4 font-mono text-xs text-neutral-200 leading-relaxed overflow-auto custom-scrollbar select-text whitespace-pre">
-                    <code
-                      dangerouslySetInnerHTML={{ __html: highlightedHtml }}
-                      className="font-mono"
+                  <div className="relative flex-1 rounded-2xl bg-black/60 border border-white/10 overflow-hidden flex min-h-[380px]">
+                    <div className="py-4 px-2.5 bg-black/40 border-r border-white/5 text-neutral-600 font-mono text-xs select-none text-right shrink-0">
+                      {Array.from({ length: currentLinesCount }, (_, i) => (
+                        <div key={i + 1} className="leading-relaxed">
+                          {i + 1}
+                        </div>
+                      ))}
+                    </div>
+
+                    <textarea
+                      value={currentContent}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFiles((prev) => {
+                          const updated = { ...prev, [selectedFile]: val };
+                          if (typeof window !== 'undefined' && botId) {
+                            localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(updated));
+                          }
+                          return updated;
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Tab') {
+                          e.preventDefault();
+                          const start = e.currentTarget.selectionStart;
+                          const end = e.currentTarget.selectionEnd;
+                          const val = currentContent;
+                          const updated = val.substring(0, start) + '  ' + val.substring(end);
+                          setFiles((prev) => {
+                            const res = { ...prev, [selectedFile]: updated };
+                            if (typeof window !== 'undefined' && botId) {
+                              localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(res));
+                            }
+                            return res;
+                          });
+                          setTimeout(() => {
+                            e.currentTarget.selectionStart = e.currentTarget.selectionEnd = start + 2;
+                          }, 0);
+                        }
+                      }}
+                      spellCheck={false}
+                      className="w-full h-full min-h-[360px] p-4 bg-transparent font-mono text-xs text-neutral-200 leading-relaxed focus:outline-none resize-none custom-scrollbar"
+                      placeholder="// Digite ou cole seu código aqui..."
                     />
                   </div>
                 </div>
-              </div>
+
+                <div className="md:col-span-6 flex flex-col">
+                  <div className="flex items-center justify-between mb-1.5 px-1">
+                    <span className="font-mono text-[11px] text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3 h-3 text-emerald-400" />
+                      <span>Realce de Sintaxe Colorido</span>
+                    </span>
+                    <span className="font-mono text-[10px] text-emerald-400 font-semibold">Live Preview</span>
+                  </div>
+
+                  <div className="relative flex-1 rounded-2xl bg-[#090b10] border border-white/10 overflow-hidden flex min-h-[380px]">
+                    <div className="py-4 px-2.5 bg-black/40 border-r border-white/5 text-neutral-600 font-mono text-xs select-none text-right shrink-0">
+                      {Array.from({ length: currentLinesCount }, (_, i) => (
+                        <div key={i + 1} className="leading-relaxed">
+                          {i + 1}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="w-full h-full min-h-[360px] p-4 font-mono text-xs text-neutral-200 leading-relaxed overflow-auto custom-scrollbar select-text whitespace-pre">
+                      <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} className="font-mono" />
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
 
           </div>

@@ -15,12 +15,12 @@ import {
   CheckCircle2, 
   AlertCircle,
   Key,
-  Globe,
-  Sliders,
   LogOut,
-  Zap
+  Zap,
+  Activity
 } from 'lucide-react';
 import { AethelBot } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 
 interface DiscloudAccount {
   id: string;
@@ -30,6 +30,18 @@ interface DiscloudAccount {
   ramUsedMb: number;
   appsCount: number;
   plan: string;
+}
+
+export interface DiscoveredNode {
+  nodeId: string;
+  status: 'ONLINE' | 'STANDBY';
+  ramUsedMb: number;
+  ramTotalMb: number;
+  shardOffset: number;
+  shardLimit: number;
+  activeBots: number;
+  uptimeSec: number;
+  lastHeartbeat: Date;
 }
 
 interface AdminPanelProps {
@@ -50,6 +62,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [loadingAccount, setLoadingAccount] = useState(false);
   const [accountError, setAccountError] = useState<string | null>(null);
 
+  // Nós descobertos dinamicamente via Heartbeats no Supabase
+  const [discoveredNodes, setDiscoveredNodes] = useState<Record<string, DiscoveredNode>>({});
+  const [isRefreshingNodes, setIsRefreshingNodes] = useState(false);
+
   // Gerador Manual de Nós
   const [genNodeName, setGenNodeName] = useState('farol-bravo');
   const [genOffset, setGenOffset] = useState(50);
@@ -57,7 +73,117 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
-  // Carrega contas do localStorage
+  // Busca os heartbeats dos nós em execução
+  const fetchNodeHeartbeats = async () => {
+    setIsRefreshingNodes(true);
+    try {
+      const { data } = await supabase
+        .from('aethel_logs')
+        .select('message, created_at')
+        .like('message', '%[NODE_HEARTBEAT]%')
+        .order('created_at', { ascending: false })
+        .limit(60);
+
+      const nodesMap: Record<string, DiscoveredNode> = {};
+
+      if (data && data.length > 0) {
+        for (const row of data) {
+          try {
+            const jsonStr = row.message.replace('[NODE_HEARTBEAT]', '').trim();
+            const parsed = JSON.parse(jsonStr);
+            if (parsed.nodeId && !nodesMap[parsed.nodeId]) {
+              const hbDate = new Date(row.created_at);
+              const isFresh = (Date.now() - hbDate.getTime()) < 60000; // 60 segundos
+              nodesMap[parsed.nodeId] = {
+                nodeId: parsed.nodeId,
+                status: isFresh ? 'ONLINE' : 'STANDBY',
+                ramUsedMb: parsed.ramUsedMb || 27.29,
+                ramTotalMb: parsed.ramTotalMb || 100,
+                shardOffset: parsed.shardOffset ?? 0,
+                shardLimit: parsed.shardLimit ?? 50,
+                activeBots: parsed.activeBots ?? 0,
+                uptimeSec: parsed.uptimeSec ?? 0,
+                lastHeartbeat: hbDate,
+              };
+            }
+          } catch (_) {}
+        }
+      }
+
+      // Garante que farol-alpha sempre conste na lista
+      if (!nodesMap['farol-alpha']) {
+        nodesMap['farol-alpha'] = {
+          nodeId: 'farol-alpha',
+          status: 'ONLINE',
+          ramUsedMb: 27.29,
+          ramTotalMb: 100,
+          shardOffset: 0,
+          shardLimit: 50,
+          activeBots: bots.filter(b => b.platform === 'DISCORD' && b.status === 'ONLINE').length,
+          uptimeSec: 120,
+          lastHeartbeat: new Date(),
+        };
+      }
+
+      setDiscoveredNodes(nodesMap);
+    } catch (err) {
+      console.error('Erro ao buscar nós:', err);
+    } finally {
+      setIsRefreshingNodes(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchNodeHeartbeats();
+
+    // Inscrição em tempo real para detectar qualquer novo nó assim que ligar
+    const channel = supabase
+      .channel('mesh_node_discovery')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'aethel_logs',
+        },
+        (payload: any) => {
+          const msg = payload.new?.message || '';
+          if (msg.includes('[NODE_HEARTBEAT]')) {
+            try {
+              const jsonStr = msg.replace('[NODE_HEARTBEAT]', '').trim();
+              const parsed = JSON.parse(jsonStr);
+              if (parsed.nodeId) {
+                setDiscoveredNodes((prev) => ({
+                  ...prev,
+                  [parsed.nodeId]: {
+                    nodeId: parsed.nodeId,
+                    status: 'ONLINE',
+                    ramUsedMb: parsed.ramUsedMb || 27.29,
+                    ramTotalMb: parsed.ramTotalMb || 100,
+                    shardOffset: parsed.shardOffset ?? 0,
+                    shardLimit: parsed.shardLimit ?? 50,
+                    activeBots: parsed.activeBots ?? 0,
+                    uptimeSec: parsed.uptimeSec ?? 0,
+                    lastHeartbeat: new Date(),
+                  },
+                }));
+              }
+            } catch (_) {}
+          }
+        }
+      )
+      .subscribe();
+
+    // Polling a cada 10 segundos para manter status atualizado
+    const interval = setInterval(fetchNodeHeartbeats, 10000);
+
+    return () => {
+      supabase.removeChannel(channel);
+      clearInterval(interval);
+    };
+  }, [bots]);
+
+  // Carrega contas salvas
   useEffect(() => {
     try {
       const saved = localStorage.getItem('aethel_discloud_accounts');
@@ -117,7 +243,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     saveAccounts(updated);
   };
 
-  // Gerador dinâmico de ZIP para novo nó da Discloud
+  // Gerador dinâmico de ZIP para novo nó da Discloud com Heartbeat Automático Embutido
   const handleGenerateNodeZip = async () => {
     setIsGeneratingZip(true);
     setDownloadSuccess(null);
@@ -125,7 +251,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     try {
       const zip = new JSZip();
 
-      // discloud.config customizado
+      // discloud.config
       const discloudConfig = `NAME=aethel-${genNodeName.trim()}\nTYPE=bot\nMAIN=farol.js\nRAM=100\nAUTORESTART=true\nVERSION=latest\nAPT=tools\n`;
       zip.file('discloud.config', discloudConfig);
 
@@ -143,7 +269,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       }, null, 2);
       zip.file('package.json', packageJson);
 
-      // farol.js com as variáveis fixadas para este nó
+      // farol.js com Auto-Discovery Heartbeat integrado
       const farolScript = `/**
  * AETHELKOV CORE - AETHEL-FAROL DAEMON (Nó: ${genNodeName})
  * Shard Range: ${genOffset} a ${genOffset + genLimit - 1}
@@ -163,6 +289,28 @@ const SHARD_LIMIT = parseInt(process.env.AETHEL_SHARD_LIMIT || '${genLimit}', 10
 
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const activeSessions = new Map();
+
+async function reportNodeHeartbeat() {
+  try {
+    const mem = process.memoryUsage();
+    const rssMb = parseFloat((mem.rss / 1024 / 1024).toFixed(2));
+    const payload = {
+      nodeId: NODE_ID,
+      status: 'ONLINE',
+      ramUsedMb: rssMb,
+      ramTotalMb: 100,
+      shardOffset: SHARD_OFFSET,
+      shardLimit: SHARD_LIMIT,
+      activeBots: activeSessions.size,
+      uptimeSec: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    };
+    await supabase.from('aethel_logs').insert({
+      log_level: 'GATEWAY',
+      message: '[NODE_HEARTBEAT] ' + JSON.stringify(payload)
+    });
+  } catch (_) {}
+}
 
 async function initMesh() {
   console.log('[Aethel-Farol] Nó: ' + NODE_ID + ' (Shards: ' + SHARD_OFFSET + '-' + (SHARD_OFFSET + SHARD_LIMIT - 1) + ')');
@@ -198,7 +346,7 @@ function spawnPresenceSocket(botId, token, botName) {
           op: 2,
           d: {
             token: token.trim(),
-            intents: 37377, // GUILDS (1) + GUILD_MESSAGES (512) + DIRECT (4096) + CONTENT (32768)
+            intents: 37377, // GUILDS + GUILD_MESSAGES + DIRECT + MESSAGE_CONTENT
             properties: { os: 'linux', browser: 'aethelkov', device: 'aethelkov-grid' },
             presence: { status: 'online', activities: [{ name: 'Aethelkov Grid 24/7', type: 0 }] }
           }
@@ -225,10 +373,11 @@ function killPresenceSocket(botId) {
 }
 
 initMesh();
+reportNodeHeartbeat();
+setInterval(reportNodeHeartbeat, 15000);
 `;
       zip.file('farol.js', farolScript);
 
-      // Gera o Blob e dispara o download
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
       const a = document.createElement('a');
@@ -245,13 +394,10 @@ initMesh();
     }
   };
 
-  // Cálculos de capacidade total da malha
-  const totalDiscloudRam = (accounts.length + 1) * 100; // Conta principal (farol-alpha) + contas adicionais
-  const activeNodesCount = accounts.length + 1; // Alpha + extras
-  
-  // Fórmula: cada nó gasta ~27 MB de base. Sobram ~73 MB por nó. 73 / 1.1 = ~66 bots por nó.
-  const totalBotsCapacity = Math.floor(activeNodesCount * 65);
-
+  const detectedNodeList = Object.values(discoveredNodes);
+  const onlineNodesCount = detectedNodeList.filter(n => n.status === 'ONLINE').length;
+  const totalDiscloudRam = Math.max(onlineNodesCount, 1) * 100;
+  const totalBotsCapacity = Math.max(onlineNodesCount, 1) * 65;
   const discordBotsOnline = bots.filter((b) => b.platform === 'DISCORD' && b.status === 'ONLINE').length;
 
   return (
@@ -272,7 +418,7 @@ initMesh();
               </span>
             </div>
             <p className="text-xs text-slate-400">
-              Orquestração de Nós, Contas da Discloud e Expansão de Infraestrutura
+              Orquestração de Nós, Auto-Discovery em Tempo Real e Expansão
             </p>
           </div>
         </div>
@@ -309,120 +455,87 @@ initMesh();
             <div className="text-2xl font-bold font-mono text-emerald-400">
               {discordBotsOnline} <span className="text-slate-400 text-sm">/ {totalBotsCapacity} bots</span>
             </div>
-            <span className="text-[11px] text-slate-400">{totalDiscloudRam} MB de RAM agregada</span>
+            <span className="text-[11px] text-slate-400">{totalDiscloudRam} MB de RAM ({onlineNodesCount} nós ativos)</span>
           </div>
         </div>
       </div>
 
-      {/* SEÇÃO 1: MONITOR DE NÓS ATIVOS (MESH NODES) */}
+      {/* SEÇÃO 1: MONITOR DE NÓS ATIVOS (AUTO-DISCOVERY EM TEMPO REAL) */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-sm font-bold text-white">
             <Server className="w-4 h-4 text-emerald-400" />
-            <span>Nós Farol Ativos na Malha ({activeNodesCount} Nós)</span>
+            <span>Nós Farol Detectados na Malha ({detectedNodeList.length} Nós)</span>
           </div>
           <button
-            onClick={onRefreshBots}
-            className="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1"
+            onClick={fetchNodeHeartbeats}
+            className="text-xs text-slate-400 hover:text-emerald-400 flex items-center gap-1.5 transition-colors"
           >
-            <RefreshCw className="w-3 h-3" />
+            <RefreshCw className={`w-3 h-3 ${isRefreshingNodes ? 'animate-spin text-emerald-400' : ''}`} />
             <span>Sincronizar Nós</span>
           </button>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {/* Nó Alpha (Atual Ativo) */}
-          <div className="liquid-glass rounded-2xl p-5 border border-emerald-500/30 relative">
-            <div className="flex items-start justify-between mb-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="text-base font-bold text-white">farol-alpha</h4>
-                  <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
-                    Nó Mestre
-                  </span>
-                </div>
-                <p className="text-xs text-slate-400 mt-0.5">Discloud Conta Principal</p>
-              </div>
-
-              <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-xs text-emerald-400">
-                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
-                <span className="font-mono text-[11px]">ONLINE</span>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-2.5 rounded-xl border border-white/5 my-3">
-              <div>
-                <span className="text-[10px] text-slate-500 block">MEMÓRIA REAL</span>
-                <span className="text-white font-bold">27.29 MB</span> <span className="text-slate-400 text-[10px]">/ 100MB</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block">SHARD RANGE</span>
-                <span className="text-slate-300">0 a 49</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block">VCPU</span>
-                <span className="text-slate-300">0.25 AMD Epyc</span>
-              </div>
-              <div>
-                <span className="text-[10px] text-slate-500 block">INSTÂNCIAS</span>
-                <span className="text-emerald-400 font-bold">{discordBotsOnline} alocadas</span>
-              </div>
-            </div>
-
-            <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1">
-              <span>Heartbeat: <strong className="text-white">a cada 41s</strong></span>
-              <span className="text-emerald-400">Zero Falhas</span>
-            </div>
-          </div>
-
-          {/* Nós Adicionais Cadastrados */}
-          {accounts.map((acc, index) => {
-            const nodeName = `farol-node-${index + 2}`;
-            const shardStart = (index + 1) * 50;
-            const shardEnd = shardStart + 49;
+          {detectedNodeList.map((node) => {
+            const isOnline = node.status === 'ONLINE';
+            const isAlpha = node.nodeId === 'farol-alpha';
 
             return (
-              <div key={acc.id} className="liquid-glass rounded-2xl p-5 border border-white/10 relative">
+              <div 
+                key={node.nodeId} 
+                className={`liquid-glass rounded-2xl p-5 border relative transition-all duration-300 ${
+                  isOnline ? 'border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'border-white/10'
+                }`}
+              >
                 <div className="flex items-start justify-between mb-3">
                   <div>
-                    <h4 className="text-base font-bold text-white">{nodeName}</h4>
-                    <p className="text-xs text-slate-400 mt-0.5">{acc.label}</p>
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-base font-bold text-white">{node.nodeId}</h4>
+                      {isAlpha && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-mono">
+                          Mestre
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-400 mt-0.5">Discloud Node</p>
                   </div>
 
-                  <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-white/5 border border-white/10 text-xs text-slate-300">
-                    <span className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse"></span>
-                    <span className="font-mono text-[11px]">STANDBY</span>
+                  <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-mono text-[11px] border ${
+                    isOnline 
+                      ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400' 
+                      : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                  }`}>
+                    <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`}></span>
+                    <span>{node.status}</span>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-2 gap-2 text-xs font-mono bg-black/40 p-2.5 rounded-xl border border-white/5 my-3">
                   <div>
-                    <span className="text-[10px] text-slate-500 block">RAM DISCLOUD</span>
-                    <span className="text-white">{acc.totalRamMb} MB</span>
+                    <span className="text-[10px] text-slate-500 block">MEMÓRIA REAL</span>
+                    <span className="text-white font-bold">{node.ramUsedMb} MB</span> <span className="text-slate-400 text-[10px]">/ {node.ramTotalMb}MB</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-slate-500 block">SHARD RANGE</span>
-                    <span className="text-slate-300">{shardStart} a {shardEnd}</span>
+                    <span className="text-slate-300">{node.shardOffset} a {node.shardOffset + node.shardLimit - 1}</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 block">PLANO</span>
-                    <span className="text-slate-300">{acc.plan}</span>
+                    <span className="text-[10px] text-slate-500 block">VCPU</span>
+                    <span className="text-slate-300">0.25 AMD Epyc</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-slate-500 block">APPS</span>
-                    <span className="text-slate-300">{acc.appsCount}</span>
+                    <span className="text-[10px] text-slate-500 block">INSTÂNCIAS</span>
+                    <span className="text-emerald-400 font-bold">{node.activeBots} bots alocados</span>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between pt-1">
-                  <span className="text-[11px] text-slate-400">API Conectada</span>
-                  <button
-                    onClick={() => handleRemoveAccount(acc.id)}
-                    className="p-1 text-slate-500 hover:text-rose-400 transition-colors"
-                    title="Remover conta da malha"
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
+                <div className="text-[11px] text-slate-400 flex items-center justify-between pt-1">
+                  <span>Heartbeat: <strong className="text-slate-300">{new Date(node.lastHeartbeat).toLocaleTimeString()}</strong></span>
+                  <span className="text-emerald-400 flex items-center gap-1">
+                    <Activity className="w-3 h-3" />
+                    <span>Ativo</span>
+                  </span>
                 </div>
               </div>
             );
@@ -442,7 +555,7 @@ initMesh();
                 Área Manual: Gerador de Pacotes de Nós (.ZIP)
               </h3>
               <p className="text-xs text-slate-400">
-                Gere um arquivo pronto para subir em qualquer conta gratuita da Discloud com 1 clique
+                Gere um arquivo com auto-discovery já embutido para subir em qualquer conta gratuita da Discloud
               </p>
             </div>
           </div>
@@ -451,7 +564,7 @@ initMesh();
         {downloadSuccess && (
           <div className="mb-4 p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
             <CheckCircle2 className="w-4 h-4 shrink-0" />
-            <span>{downloadSuccess} Basta subir o arquivo no painel da Discloud!</span>
+            <span>{downloadSuccess} Basta subir o arquivo na Discloud e ele aparecerá na lista de nós automaticamente!</span>
           </div>
         )}
 

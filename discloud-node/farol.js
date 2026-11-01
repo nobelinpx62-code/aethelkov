@@ -243,27 +243,33 @@ process.on('uncaughtException', (err) => {
   console.error(`[${NODE_ID}] Uncaught Exception:`, err);
 });
 
-initMesh();
-
-// Telemetria real em segundo plano a cada 30 segundos
-setInterval(async () => {
+async function reportNodeHeartbeat() {
   try {
     const mem = process.memoryUsage();
     const rssMb = parseFloat((mem.rss / 1024 / 1024).toFixed(2));
-    const uptimeSec = Math.floor(process.uptime());
-
-    for (const [botId] of activeSessions) {
-      await supabase
-        .from('aethel_bots')
-        .update({
-          current_ram_mb: rssMb,
-          current_cpu_percent: 0.25,
-          uptime_seconds: uptimeSec,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', botId);
-    }
+    const payload = {
+      nodeId: NODE_ID,
+      status: 'ONLINE',
+      ramUsedMb: rssMb,
+      ramTotalMb: 100,
+      shardOffset: SHARD_OFFSET,
+      shardLimit: SHARD_LIMIT,
+      activeBots: activeSessions.size,
+      uptimeSec: Math.floor(process.uptime()),
+      timestamp: new Date().toISOString()
+    };
+    await supabase.from('aethel_logs').insert({
+      log_level: 'GATEWAY',
+      message: `[NODE_HEARTBEAT] ${JSON.stringify(payload)}`
+    });
   } catch (_) {}
-}, 30000);
+}
+
+initMesh();
+
+// Heartbeat de descoberta do nó (boot imediato e a cada 15s)
+reportNodeHeartbeat();
+setInterval(reportNodeHeartbeat, 15000);
+
 
 

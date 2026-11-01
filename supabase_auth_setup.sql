@@ -1,5 +1,5 @@
 -- ==============================================================================
--- AETHEL KOV INFRASTRUCTURE - SUPABASE AUTH & PROFILES SETUP
+-- AETHEL KOV INFRASTRUCTURE - SUPABASE AUTH & PROFILES SETUP (CORRIGIDO)
 -- Execute este script no SQL Editor do seu Dashboard Supabase
 -- Link: https://supabase.com/dashboard/project/rrxrcxutdzedkqaesdkm/sql
 -- ==============================================================================
@@ -38,7 +38,7 @@ declare
   v_avatar_url text;
   v_discord_id text;
 begin
-  -- Extração inteligente de metadados do Discord ou cadastro por E-mail
+  -- Extração de metadados do Discord ou cadastro por E-mail
   v_display_name := coalesce(
     new.raw_user_meta_data->>'full_name',
     new.raw_user_meta_data->>'name',
@@ -83,40 +83,40 @@ create trigger on_auth_user_created
   for each row execute procedure public.handle_new_user();
 
 -- 3. Atualização da tabela aethel_bots para isolamento multi-tenant
+-- Adiciona user_id como TEXT caso não exista (permite UUID ou strings legadas sem erro de tipo)
 alter table public.aethel_bots 
-  add column if not exists user_id uuid references auth.users(id) on delete cascade;
+  add column if not exists user_id text default 'default-user';
 
 -- Ativa RLS na tabela de bots
 alter table public.aethel_bots enable row level security;
 
--- Políticas de RLS para aethel_bots:
--- Permite que usuários vejam seus próprios bots ou bots livres do demo
+-- Políticas de RLS com typecast explícito (auth.uid()::text = user_id)
 drop policy if exists "Usuários podem ver seus próprios bots" on public.aethel_bots;
 create policy "Usuários podem ver seus próprios bots" 
   on public.aethel_bots for select 
-  using (auth.uid() = user_id or user_id is null);
+  using (auth.uid()::text = user_id or user_id is null or user_id = 'default-user');
 
 drop policy if exists "Usuários podem cadastrar seus próprios bots" on public.aethel_bots;
 create policy "Usuários podem cadastrar seus próprios bots" 
   on public.aethel_bots for insert 
-  with check (auth.uid() = user_id or user_id is null);
+  with check (auth.uid()::text = user_id or user_id is null or user_id = 'default-user');
 
 drop policy if exists "Usuários podem atualizar seus próprios bots" on public.aethel_bots;
 create policy "Usuários podem atualizar seus próprios bots" 
   on public.aethel_bots for update 
-  using (auth.uid() = user_id or user_id is null);
+  using (auth.uid()::text = user_id or user_id is null or user_id = 'default-user');
 
 drop policy if exists "Usuários podem apagar seus próprios bots" on public.aethel_bots;
 create policy "Usuários podem apagar seus próprios bots" 
   on public.aethel_bots for delete 
-  using (auth.uid() = user_id or user_id is null);
+  using (auth.uid()::text = user_id or user_id is null or user_id = 'default-user');
 
--- 4. Função RPC aprimorada para registrar bots vinculados ao usuário autenticado
+-- 4. Função RPC para registrar bots compatível com auth.uid()
 create or replace function public.register_or_update_bot(
-  p_user_id text,
-  p_bot_name text,
-  p_platform text,
-  p_token_encrypted text,
+  p_user_id text default 'default-user',
+  p_bot_name text default 'Meu Bot',
+  p_platform text default 'DISCORD',
+  p_token_encrypted text default '',
   p_ram_limit_mb integer default 100,
   p_main_file text default 'index.js',
   p_config_type text default 'aethel',
@@ -125,10 +125,10 @@ create or replace function public.register_or_update_bot(
 returns json as $$
 declare
   v_bot_id uuid;
-  v_auth_uid uuid;
+  v_effective_user_id text;
 begin
-  -- Tenta pegar o auth.uid() da sessão ativa
-  v_auth_uid := auth.uid();
+  -- Se o usuário estiver autenticado, usa o UID dele em texto; senão, usa p_user_id
+  v_effective_user_id := coalesce(auth.uid()::text, p_user_id, 'default-user');
 
   insert into public.aethel_bots (
     user_id,
@@ -142,11 +142,11 @@ begin
     status
   )
   values (
-    v_auth_uid,
+    v_effective_user_id,
     p_bot_name,
     p_platform,
     p_token_encrypted,
-    least(p_ram_limit_mb, 100),
+    least(coalesce(p_ram_limit_mb, 100), 100),
     p_main_file,
     p_config_type,
     p_assigned_node,

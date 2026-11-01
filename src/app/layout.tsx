@@ -1,9 +1,33 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 import './globals.css';
 
+export const viewport: Viewport = {
+  themeColor: '#07080a',
+  width: 'device-width',
+  initialScale: 1,
+  maximumScale: 5,
+  viewportFit: 'cover',
+};
+
 export const metadata: Metadata = {
-  title: 'Aethelkov | Autonomous Hybrid Grid Runtime',
-  description: 'Hospedagem profissional de bots Discord e Telegram com infraestrutura de custo zero absoluto (R$ 0,00).',
+  title: 'Aethel Kov | Autonomous Hybrid Grid Runtime',
+  description: 'Hospedagem profissional de bots Discord e Telegram com infraestrutura de alta velocidade 24/7.',
+  manifest: '/manifest.json',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+    shortcut: '/icon.svg',
+    apple: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+    ],
+  },
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'Aethel Kov',
+  },
+  applicationName: 'Aethel Kov',
 };
 
 export default function RootLayout({

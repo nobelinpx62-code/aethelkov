@@ -110,8 +110,8 @@ export const DeployModal: React.FC<DeployModalProps> = ({ isOpen, onClose, onSuc
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-md">
-      <div className="liquid-glass w-full max-w-xl rounded-3xl overflow-hidden border border-white/10 shadow-2xl animate-subtle-float">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-md">
+      <div className="liquid-glass w-full max-w-xl max-h-[92vh] overflow-y-auto custom-scrollbar rounded-3xl border border-white/10 shadow-2xl animate-subtle-float">
         {/* Header */}
         <div className="px-6 py-4 border-b border-white/10 flex items-center justify-between">
           <div>

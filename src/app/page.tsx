@@ -293,7 +293,7 @@ export default function DashboardPage() {
           /* =========================================================================
               PAINEL OPERACIONAL LIQUID GLASS (VISÍVEL APENAS QUANDO AUTENTICADO)
              ========================================================================= */
-          <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-8 pb-20 animate-fadeIn">
+          <main className="mx-auto w-[94%] max-w-6xl flex-1 pt-6 md:pt-8 pb-28 md:pb-20 animate-fadeIn">
             {/* Notificação Temporária */}
             {notification && (
               <div className="mb-6 p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-sm flex items-center gap-3 shadow-lg animate-fadeIn">

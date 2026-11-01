@@ -104,7 +104,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-2xl animate-fadeIn">
       {/* Container Principal Apple Liquid Glass */}
-      <div className="apple-glass-card rounded-[32px] sm:rounded-[36px] max-w-lg w-full p-6 sm:p-8 border border-white/20 relative overflow-hidden shadow-[0_30px_90px_rgba(0,0,0,0.9)] space-y-6">
+      <div className="apple-glass-card rounded-[32px] sm:rounded-[36px] max-w-lg w-full max-h-[92vh] overflow-y-auto custom-scrollbar p-5 sm:p-8 border border-white/20 relative shadow-[0_30px_90px_rgba(0,0,0,0.9)] space-y-5 sm:space-y-6">
         
         {/* Reflexo Especular Superior */}
         <div className="glass-specular pointer-events-none absolute inset-x-12 top-0 h-[1.5px]"></div>

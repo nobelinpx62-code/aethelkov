@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { AethelBot, AethelLog } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
+import { BotFileEditor } from './BotFileEditor';
 import { 
   Menu,
   X,
@@ -115,7 +116,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
   const [isSavingFile, setIsSavingFile] = useState(false);
   const [fileSaveToast, setFileSaveToast] = useState<string | null>(null);
 
-  const handleSaveFileContent = async () => {
+  const handleSaveFileContent = async (_updatedFiles: Record<string, string>, currentFile: string) => {
     setIsSavingFile(true);
     setFileSaveToast(null);
 
@@ -124,14 +125,14 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       await supabase.from('aethel_logs').insert({
         bot_id: bot.id,
         log_level: 'DISPATCH',
-        message: `[Aethel-Runner] Arquivo "${selectedFile}" atualizado pelo editor web. Hot-reload aplicado com sucesso!`,
+        message: `[Aethel-Runner] Arquivo "${currentFile}" atualizado pelo editor web. Hot-reload aplicado com sucesso!`,
       });
 
       // Reinicia / atualiza estado da instância
       await onToggleStatus(bot.id, 'ONLINE');
       onRefresh();
 
-      setFileSaveToast(`Arquivo "${selectedFile}" salvo e instância reiniciada com o novo código!`);
+      setFileSaveToast(`Arquivo "${currentFile}" salvo e instância reiniciada com o novo código!`);
       setTimeout(() => setFileSaveToast(null), 4000);
     } catch (err: any) {
       alert('Erro ao atualizar bot: ' + err.message);
@@ -1116,95 +1117,19 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       )}
 
       {/* ========================================================
-          ABA 9: ARQUIVOS (EDITOR DE CÓDIGO ONLINE COM HOT-RELOAD)
+          ABA 9: ARQUIVOS (EDITOR DE CÓDIGO ONLINE COM PASTAS E SYNTAX HIGHLIGHTING)
          ======================================================== */}
       {activeTab === 'files' && (
-        <div className="apple-glass-card rounded-[28px] overflow-hidden border border-white/12 animate-fadeIn font-mono text-xs">
-          {/* Header do Editor */}
-          <div className="p-4 bg-black/60 border-b border-white/10 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2.5">
-              <div className="p-1.5 rounded-lg bg-amber-500/10 border border-amber-500/20 text-amber-300">
-                <Folder className="w-4 h-4" />
-              </div>
-              <div>
-                <span className="font-semibold text-white">Editor de Arquivos Online</span>
-                <span className="text-[10px] text-emerald-400 block sm:inline sm:ml-2">● Hot-Reload em Tempo Real</span>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-neutral-400">Editando: <strong className="text-white">{selectedFile}</strong></span>
-              <button
-                type="button"
-                onClick={handleSaveFileContent}
-                disabled={isSavingFile}
-                className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-4 py-1.5 text-xs font-semibold text-white disabled:opacity-50"
-              >
-                <Save className="w-3.5 h-3.5" />
-                <span>{isSavingFile ? 'Salvando & Reiniciando...' : 'Salvar & Atualizar Bot'}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Toast de Sucesso */}
-          {fileSaveToast && (
-            <div className="p-3 bg-emerald-500/15 border-b border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-              <span>{fileSaveToast}</span>
-            </div>
-          )}
-
-          <div className="grid grid-cols-1 md:grid-cols-12 min-h-[440px]">
-            {/* Lista Lateral de Arquivos */}
-            <div className="md:col-span-3 bg-black/40 p-3 border-r border-white/10 space-y-1">
-              <span className="text-[10px] font-semibold text-neutral-500 uppercase px-2 mb-1 block">Arquivos do Projeto</span>
-              {Object.keys(fileContents).map((fileName) => {
-                const isActive = selectedFile === fileName;
-                const sizeBytes = new Blob([fileContents[fileName] || '']).size;
-                const sizeText = sizeBytes < 1024 ? `${sizeBytes} B` : `${(sizeBytes / 1024).toFixed(1)} KB`;
-
-                return (
-                  <button
-                    key={fileName}
-                    type="button"
-                    onClick={() => setSelectedFile(fileName)}
-                    className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-colors ${
-                      isActive ? 'bg-white/12 text-white font-semibold border border-white/15' : 'text-neutral-400 hover:text-white hover:bg-white/5'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2 truncate">
-                      <FileCode className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-cyan-400' : 'text-neutral-500'}`} />
-                      <span className="truncate">{fileName}</span>
-                    </div>
-                    <span className="text-[10px] text-neutral-500 shrink-0 ml-1">{sizeText}</span>
-                  </button>
-                );
-              })}
-            </div>
-
-            {/* Editor de Texto Monospace */}
-            <div className="md:col-span-9 bg-[#08090c] p-4 flex flex-col justify-between">
-              <div className="relative w-full flex-1 min-h-[360px]">
-                <textarea
-                  value={fileContents[selectedFile] || ''}
-                  onChange={(e) => {
-                    const newVal = e.target.value;
-                    setFileContents((prev) => ({ ...prev, [selectedFile]: newVal }));
-                  }}
-                  spellCheck={false}
-                  className="w-full h-full min-h-[360px] p-4 rounded-2xl bg-black/60 border border-white/10 font-mono text-xs text-neutral-200 leading-relaxed focus:outline-none focus:border-cyan-400/50 resize-y custom-scrollbar"
-                  placeholder="// Digite o código aqui..."
-                ></textarea>
-              </div>
-
-              {/* Barra de Status Inferior */}
-              <div className="pt-3 border-t border-white/5 flex items-center justify-between text-[11px] text-neutral-400 font-mono">
-                <span>Linhas: {(fileContents[selectedFile] || '').split('\n').length} &bull; Tamanho: {new Blob([fileContents[selectedFile] || '']).size} bytes</span>
-                <span className="text-emerald-400 font-medium">Pronto para execução</span>
-              </div>
-            </div>
-          </div>
-        </div>
+        <BotFileEditor
+          botName={bot.bot_name}
+          mainFile={bot.main_file || 'index.js'}
+          tokenEncrypted={bot.token_encrypted}
+          ramLimitMb={bot.ram_limit_mb || 100}
+          platform={bot.platform}
+          onSave={handleSaveFileContent}
+          isSaving={isSavingFile}
+          saveToast={fileSaveToast}
+        />
       )}
 
       {/* ========================================================

@@ -1,0 +1,18 @@
+{
+  "name": "aethel-farol",
+  "version": "1.0.0",
+  "description": "Aethelkov Core - Aethel-Farol Lightweight Presence Daemon for Discloud",
+  "main": "farol.js",
+  "scripts": {
+    "start": "node farol.js"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.0",
+    "ws": "^8.18.0",
+    "dotenv": "^16.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+

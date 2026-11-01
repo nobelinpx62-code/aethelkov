@@ -483,3 +483,4 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
     </div>
   );
 };
+

@@ -8,6 +8,8 @@ import { BotGrid } from '@/components/BotGrid';
 import { LiveTerminal } from '@/components/LiveTerminal';
 import { DeployModal } from '@/components/DeployModal';
 import { BotDetailView } from '@/components/BotDetailView';
+import { AdminAuthModal } from '@/components/AdminAuthModal';
+import { AdminPanel } from '@/components/AdminPanel';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { ShieldCheck, CheckCircle2 } from 'lucide-react';
 
@@ -28,6 +30,18 @@ export default function DashboardPage() {
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
+
+  // Estados do Modo Admin Secreto
+  const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
+  const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
+
+  const handleTriggerAdmin = () => {
+    if (typeof window !== 'undefined' && sessionStorage.getItem('aethel_admin_auth') === 'true') {
+      setIsAdminPanelOpen(true);
+    } else {
+      setIsAdminAuthModalOpen(true);
+    }
+  };
 
   const fetchBotsAndStats = useCallback(async () => {
     setIsRefreshing(true);
@@ -120,6 +134,7 @@ export default function DashboardPage() {
         onOpenDeploy={() => setIsDeployOpen(true)}
         onRefresh={fetchBotsAndStats}
         isRefreshing={isRefreshing}
+        onTriggerAdmin={handleTriggerAdmin}
       />
 
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-8 py-8 space-y-8">
@@ -131,7 +146,14 @@ export default function DashboardPage() {
           </div>
         )}
 
-        {focusedBot ? (
+        {isAdminPanelOpen ? (
+          /* Painel Root de Infraestrutura e Gestão de Nós Mesh */
+          <AdminPanel
+            bots={bots}
+            onClose={() => setIsAdminPanelOpen(false)}
+            onRefreshBots={fetchBotsAndStats}
+          />
+        ) : focusedBot ? (
           /* Visualização de Detalhes Estilo Discloud Pro */
           <BotDetailView
             bot={focusedBot}
@@ -211,6 +233,16 @@ export default function DashboardPage() {
           fetchBotsAndStats();
           setNotification('🚀 Instância implantada com sucesso na malha Aethelkov!');
           setTimeout(() => setNotification(null), 5000);
+        }}
+      />
+
+      {/* Modal Secreto de Autenticação Admin */}
+      <AdminAuthModal
+        isOpen={isAdminAuthModalOpen}
+        onClose={() => setIsAdminAuthModalOpen(false)}
+        onSuccess={() => {
+          setIsAdminAuthModalOpen(false);
+          setIsAdminPanelOpen(true);
         }}
       />
 

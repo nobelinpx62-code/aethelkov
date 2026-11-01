@@ -1,22 +1,55 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef } from 'react';
 import { Cpu, ShieldCheck, Zap, Plus, RefreshCw } from 'lucide-react';
 
 interface NavbarProps {
   onOpenDeploy: () => void;
   onRefresh: () => void;
   isRefreshing: boolean;
+  onTriggerAdmin: () => void;
 }
 
-export const Navbar: React.FC<NavbarProps> = ({ onOpenDeploy, onRefresh, isRefreshing }) => {
+export const Navbar: React.FC<NavbarProps> = ({ 
+  onOpenDeploy, 
+  onRefresh, 
+  isRefreshing,
+  onTriggerAdmin,
+}) => {
+  const [clickCount, setClickCount] = useState(0);
+  const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+
+  const handleEmblemClick = () => {
+    const nextCount = clickCount + 1;
+    setClickCount(nextCount);
+
+    if (clickTimeoutRef.current) {
+      clearTimeout(clickTimeoutRef.current);
+    }
+
+    if (nextCount >= 3) {
+      setClickCount(0);
+      onTriggerAdmin();
+    } else {
+      clickTimeoutRef.current = setTimeout(() => {
+        setClickCount(0);
+      }, 2000);
+    }
+  };
+
   return (
     <header className="sticky top-0 z-40 w-full px-4 sm:px-8 py-4 backdrop-blur-xl bg-black/40 border-b border-white/5">
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-4">
-        {/* Brand */}
+        {/* Brand com Clique Secreto Triplo no Brasão */}
         <div className="flex items-center gap-3">
-          <div className="relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)]">
-            <Zap className="w-5 h-5 text-emerald-400" />
+          <div 
+            onClick={handleEmblemClick}
+            className={`relative flex items-center justify-center w-10 h-10 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-500/30 shadow-[0_0_15px_rgba(16,185,129,0.2)] cursor-pointer select-none transition-transform active:scale-90 ${
+              clickCount > 0 ? 'ring-2 ring-emerald-400 scale-105' : ''
+            }`}
+            title="Aethelkov Core"
+          >
+            <Zap className={`w-5 h-5 text-emerald-400 ${clickCount > 0 ? 'animate-bounce' : ''}`} />
             <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>

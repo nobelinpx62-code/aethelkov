@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
-import { parseConfigFile } from '@/lib/configParser';
+import { inspectZipBot } from '@/lib/botInspector';
 import JSZip from 'jszip';
 
 const MAX_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB limite estrito
@@ -26,7 +26,7 @@ export async function POST(req: NextRequest) {
     // Inspeciona o arquivo ZIP
     const zip = await JSZip.loadAsync(fileBuffer);
 
-    // Validação de cota descompactada (Prevenção de excesso de node_modules ou downloads)
+    // Validação de cota descompactada
     let totalUncompressedBytes = 0;
     zip.forEach((_, entry) => {
       const uncomp = (entry as any)._data?.uncompressedSize || 0;
@@ -39,34 +39,12 @@ export async function POST(req: NextRequest) {
       }, { status: 413 });
     }
 
-    // Procura por aethel.config ou discloud.config
-    let configContent: string | null = null;
-    let configFilename = 'aethel.config';
+    // Inspeção profunda e inteligente de token, plataforma e configuração
+    const inspected = await inspectZipBot(zip, manualToken);
 
-    const aethelFile = zip.file('aethel.config') || zip.file(/^.*\/aethel\.config$/i)[0];
-    const discloudFile = zip.file('discloud.config') || zip.file(/^.*\/discloud\.config$/i)[0];
-
-    if (aethelFile) {
-      configContent = await aethelFile.async('string');
-      configFilename = 'aethel.config';
-    } else if (discloudFile) {
-      configContent = await discloudFile.async('string');
-      configFilename = 'discloud.config';
-    }
-
-    if (!configContent) {
+    if (!inspected.token) {
       return NextResponse.json({
-        error: 'Arquivo de configuração não encontrado no ZIP. Inclua um arquivo "aethel.config".',
-      }, { status: 400 });
-    }
-
-    // Faz o parse do arquivo
-    const parsed = parseConfigFile(configContent, configFilename);
-    const effectiveToken = manualToken || parsed.token;
-
-    if (!effectiveToken) {
-      return NextResponse.json({
-        error: 'Token do bot não foi informado nem encontrado no arquivo de configuração.',
+        error: 'Não foi possível encontrar o token do bot nos arquivos (verificamos discloud.config, aethel.config, .env e o código-fonte). Por favor, informe o token no campo de autenticação.',
       }, { status: 400 });
     }
 
@@ -86,12 +64,12 @@ export async function POST(req: NextRequest) {
     // Registra o bot no banco de dados via RPC
     const { data: botData, error: dbError } = await supabase.rpc('register_or_update_bot', {
       p_user_id: 'default-user',
-      p_bot_name: parsed.name,
-      p_platform: parsed.platform,
-      p_token_encrypted: effectiveToken,
-      p_ram_limit_mb: parsed.ram,
-      p_main_file: parsed.main,
-      p_config_type: parsed.configType,
+      p_bot_name: inspected.name,
+      p_platform: inspected.platform,
+      p_token_encrypted: inspected.token,
+      p_ram_limit_mb: inspected.ramLimitMb,
+      p_main_file: inspected.mainFile,
+      p_config_type: inspected.configType,
       p_assigned_node: 'farol-alpha',
     });
 
@@ -109,20 +87,35 @@ export async function POST(req: NextRequest) {
         .eq('id', botId);
 
       // Se for Discord, emite comando SPAWN_BOT para o nó do Farol via Realtime
-      if (parsed.platform === 'DISCORD') {
+      if (inspected.platform === 'DISCORD') {
         const channel = supabase.channel('mesh_control_farol-alpha');
         await channel.send({
           type: 'broadcast',
           event: 'SPAWN_BOT',
-          payload: { botId, token: effectiveToken, botName: parsed.name },
+          payload: { botId, token: inspected.token, botName: inspected.name },
         });
       }
+
+      // Registra log da auto-detecção
+      await supabase.from('aethel_logs').insert({
+        bot_id: botId,
+        log_level: 'INFO',
+        message: `[Aethel-Core] Aplicação detectada automaticamente como ${inspected.platform} (${inspected.detectionDetails.platformReason}). Token extraído de: ${inspected.detectionDetails.tokenSource || 'upload'}.`,
+      });
     }
 
     return NextResponse.json({
       success: true,
       bot: botData,
-      parsedConfig: parsed,
+      botId,
+      inspected: {
+        name: inspected.name,
+        platform: inspected.platform,
+        mainFile: inspected.mainFile,
+        ramLimitMb: inspected.ramLimitMb,
+        detectionReason: inspected.detectionDetails.platformReason,
+        tokenSource: inspected.detectionDetails.tokenSource,
+      },
       fileSizeMb: (file.size / (1024 * 1024)).toFixed(2),
     });
   } catch (err: any) {
@@ -130,4 +123,3 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
-

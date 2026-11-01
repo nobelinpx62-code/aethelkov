@@ -324,7 +324,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                     >
                       {userSubdomains.map((s) => (
                         <option key={s.id} value={s.subdomain}>
-                          https://{s.subdomain}.aethel.app ({s.ram_allocated_mb} MB)
+                          /sites/{s.subdomain} (512 MB Dedicada)
                         </option>
                       ))}
                     </select>
@@ -473,7 +473,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                       >
                         {userSubdomains.map((s) => (
                           <option key={s.id} value={s.subdomain}>
-                            https://{s.subdomain}.aethel.app ({s.ram_allocated_mb} MB)
+                            /sites/{s.subdomain} (512 MB Dedicada)
                           </option>
                         ))}
                       </select>

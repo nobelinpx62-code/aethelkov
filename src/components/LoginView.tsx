@@ -325,7 +325,7 @@ export const LoginView: React.FC<LoginViewProps> = ({
                 <div className="flex h-5 w-5 items-center justify-center rounded-full bg-purple-500/20 text-purple-400 shrink-0">
                   <CheckCircle2 className="w-3.5 h-3.5" />
                 </div>
-                <span>Subdomínio gratuito próprio (ex: <code>seunome.aethel.app</code>)</span>
+                <span>Subdomínio gratuito na Vercel (ex: <code>/sites/seunome</code>)</span>
               </div>
 
               <div className="flex items-center gap-2.5 text-xs text-neutral-300 font-sans">

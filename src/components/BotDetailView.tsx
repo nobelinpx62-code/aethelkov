@@ -424,60 +424,66 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
       </div>
 
       {/* BANNER DE LINK PÚBLICO SE FOR SITE OU POSSUIR SUBDOMÍNIO */}
-      {(bot.platform === 'SITE' || bot.config_type === 'site' || bot.subdomain) && (
-        <div className="apple-glass-card rounded-[28px] p-5 sm:p-6 border border-cyan-400/30 bg-gradient-to-r from-cyan-500/10 via-transparent to-blue-500/10 relative overflow-hidden shadow-[0_10px_40px_rgba(6,182,212,0.2)] animate-fadeIn">
-          <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1.5px]"></div>
-          
-          <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-            <div className="flex items-center gap-3.5">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]">
-                <Globe className="w-6 h-6 animate-pulse" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="font-mono text-xs font-semibold text-cyan-400 uppercase tracking-wider">
-                    Link Público do Site
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
-                    <ShieldCheck className="w-3 h-3" /> SSL HTTPS Ativo
-                  </span>
-                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 font-mono text-[10px]">
-                    512 MB Dedicada
-                  </span>
-                </div>
-                <div className="text-base sm:text-lg font-bold text-white font-mono mt-0.5 break-all">
-                  https://{bot.subdomain || bot.bot_name.toLowerCase().replace(/[^a-z0-9-]/g, '')}.aethel.app
-                </div>
-              </div>
-            </div>
+      {(bot.platform === 'SITE' || bot.config_type === 'site' || bot.subdomain) && (() => {
+        const siteSub = bot.subdomain || bot.bot_name.toLowerCase().replace(/[^a-z0-9-]/g, '');
+        const siteUrl = typeof window !== 'undefined' && window.location.origin
+          ? `${window.location.origin}/sites/${siteSub}`
+          : `https://aethelkov.vercel.app/sites/${siteSub}`;
 
-            <div className="flex items-center gap-2 shrink-0">
-              <button
-                type="button"
-                onClick={() => {
-                  const url = `https://${bot.subdomain || bot.bot_name.toLowerCase().replace(/[^a-z0-9-]/g, '')}.aethel.app`;
-                  navigator.clipboard.writeText(url);
-                  alert('Link do site copiado para a área de transferência!');
-                }}
-                className="apple-pill-btn flex items-center gap-2 px-4 py-2 rounded-full font-mono text-xs text-neutral-200 bg-white/5 hover:bg-white/10 border border-white/15 transition-colors"
-              >
-                <Copy className="w-3.5 h-3.5" />
-                <span>Copiar Link</span>
-              </button>
+        return (
+          <div className="apple-glass-card rounded-[28px] p-5 sm:p-6 border border-cyan-400/30 bg-gradient-to-r from-cyan-500/10 via-transparent to-blue-500/10 relative overflow-hidden shadow-[0_10px_40px_rgba(6,182,212,0.2)] animate-fadeIn">
+            <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1.5px]"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div className="flex items-center gap-3.5">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-cyan-500/20 border border-cyan-400/40 text-cyan-300 shadow-[inset_0_1px_1px_rgba(255,255,255,0.4)]">
+                  <Globe className="w-6 h-6 animate-pulse" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="font-mono text-xs font-semibold text-cyan-400 uppercase tracking-wider">
+                      Link Público do Site (Vercel Edge)
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 font-mono text-[10px] font-semibold flex items-center gap-1">
+                      <ShieldCheck className="w-3 h-3" /> SSL HTTPS Ativo
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full bg-cyan-500/15 border border-cyan-400/30 text-cyan-300 font-mono text-[10px]">
+                      512 MB Dedicada
+                    </span>
+                  </div>
+                  <div className="text-base sm:text-lg font-bold text-white font-mono mt-0.5 break-all">
+                    {siteUrl}
+                  </div>
+                </div>
+              </div>
 
-              <a
-                href={`https://${bot.subdomain || bot.bot_name.toLowerCase().replace(/[^a-z0-9-]/g, '')}.aethel.app`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="apple-pill-btn apple-pill-primary flex items-center gap-2 px-4 py-2 rounded-full font-mono text-xs font-semibold text-white shadow-md"
-              >
-                <span>Abrir Site</span>
-                <ExternalLink className="w-3.5 h-3.5" />
-              </a>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(siteUrl);
+                    alert('Link do site copiado para a área de transferência!');
+                  }}
+                  className="apple-pill-btn flex items-center gap-2 px-4 py-2 rounded-full font-mono text-xs text-neutral-200 bg-white/5 hover:bg-white/10 border border-white/15 transition-colors"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar Link</span>
+                </button>
+
+                <a
+                  href={siteUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="apple-pill-btn apple-pill-primary flex items-center gap-2 px-4 py-2 rounded-full font-mono text-xs font-semibold text-white shadow-md"
+                >
+                  <span>Abrir Site</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
       {activeTab === 'overview' && (
         <div className="space-y-6 animate-fadeIn">
           {/* Header Principal */}

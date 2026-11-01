@@ -64,7 +64,7 @@ export const SubdomainManager: React.FC<SubdomainManagerProps> = ({
     const result = createSubdomain(userId, newSubInput);
 
     if (result.success && result.subdomain) {
-      setSuccessMsg(`Subdomínio "${result.subdomain.subdomain}.aethel.app" registrado com sucesso com 512 MB de RAM!`);
+      setSuccessMsg(`Subdomínio registrado com sucesso! Rota ativa em: ${result.subdomain.full_url}`);
       setNewSubInput('');
       loadSubdomains();
       setTimeout(() => setSuccessMsg(null), 5000);
@@ -76,7 +76,7 @@ export const SubdomainManager: React.FC<SubdomainManagerProps> = ({
   };
 
   const handleDelete = (id: string, name: string) => {
-    if (confirm(`Tem certeza que deseja liberar o subdomínio "${name}.aethel.app"? Se ele estiver vinculado a um site, o site perderá a rota.`)) {
+    if (confirm(`Tem certeza que deseja liberar o subdomínio "${name}"? Se ele estiver vinculado a um site, o site perderá a rota.`)) {
       deleteSubdomain(id);
       loadSubdomains();
     }
@@ -129,17 +129,22 @@ export const SubdomainManager: React.FC<SubdomainManagerProps> = ({
 
           <div className="flex flex-col sm:flex-row items-center gap-3">
             <div className="relative flex-1 w-full flex items-center rounded-2xl bg-black/50 border border-white/15 focus-within:border-cyan-400 transition-colors overflow-hidden">
-              <span className="pl-4 font-mono text-xs text-neutral-500 select-none">https://</span>
+              <span className="pl-4 font-mono text-[11px] sm:text-xs text-neutral-400 select-none hidden sm:inline">
+                aethelkov.vercel.app/sites/
+              </span>
+              <span className="pl-3 font-mono text-[11px] text-neutral-400 select-none sm:hidden">
+                /sites/
+              </span>
               <input
                 type="text"
                 value={newSubInput}
                 onChange={(e) => setNewSubInput(e.target.value.toLowerCase().trim())}
-                placeholder="meu-site-incrivel"
+                placeholder="meu-site"
                 className="w-full py-3 px-1.5 bg-transparent text-white placeholder-neutral-500 font-mono text-xs sm:text-sm focus:outline-none"
                 required
               />
-              <span className="pr-4 font-mono text-xs sm:text-sm text-cyan-400 font-semibold select-none">
-                .aethel.app
+              <span className="pr-4 font-mono text-xs text-cyan-400 font-semibold select-none shrink-0">
+                512 MB
               </span>
             </div>
 
@@ -218,7 +223,7 @@ export const SubdomainManager: React.FC<SubdomainManagerProps> = ({
                   {/* URL do Subdomínio */}
                   <div className="space-y-1">
                     <span className="font-mono text-sm sm:text-base font-bold text-white group-hover:text-cyan-300 transition-colors truncate block">
-                      {sub.subdomain}<span className="text-neutral-400 font-normal">.aethel.app</span>
+                      /sites/<span className="text-cyan-400">{sub.subdomain}</span>
                     </span>
                     <span className="font-mono text-[11px] text-neutral-400 flex items-center gap-1.5">
                       <HardDrive className="w-3 h-3 text-cyan-400" />

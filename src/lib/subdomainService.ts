@@ -15,6 +15,14 @@ export interface AethelSubdomain {
 
 const STORAGE_KEY = 'aethel_registered_subdomains';
 
+export function getSubdomainFullUrl(subdomain: string): string {
+  const clean = subdomain.trim().toLowerCase();
+  if (typeof window !== 'undefined' && window.location.origin) {
+    return `${window.location.origin}/sites/${clean}`;
+  }
+  return `https://aethelkov.vercel.app/sites/${clean}`;
+}
+
 const RESERVED_SUBDOMAINS = [
   'admin',
   'api',
@@ -83,7 +91,7 @@ export function getAllRegisteredSubdomains(): AethelSubdomain[] {
           subdomain: 'demo-proxy',
           target_bot_id: null,
           target_bot_name: null,
-          full_url: 'https://demo-proxy.aethel.app',
+          full_url: getSubdomainFullUrl('demo-proxy'),
           status: 'AVAILABLE',
           created_at: new Date().toISOString(),
           ssl_active: true,
@@ -93,7 +101,11 @@ export function getAllRegisteredSubdomains(): AethelSubdomain[] {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
       return initial;
     }
-    return JSON.parse(raw);
+    const parsed: AethelSubdomain[] = JSON.parse(raw);
+    return parsed.map((item) => ({
+      ...item,
+      full_url: getSubdomainFullUrl(item.subdomain),
+    }));
   } catch {
     return [];
   }
@@ -122,7 +134,7 @@ export function createSubdomain(
   const clean = subdomain.trim().toLowerCase();
 
   if (isSubdomainTaken(clean)) {
-    return { success: false, error: `O subdomínio "${clean}.aethel.app" já foi registrado por outro usuário.` };
+    return { success: false, error: `O subdomínio "${clean}" já foi registrado no link da Vercel por outro usuário.` };
   }
 
   const userSubs = getUserSubdomains(userId);
@@ -139,7 +151,7 @@ export function createSubdomain(
     subdomain: clean,
     target_bot_id: null,
     target_bot_name: null,
-    full_url: `https://${clean}.aethel.app`,
+    full_url: getSubdomainFullUrl(clean),
     status: 'AVAILABLE',
     created_at: new Date().toISOString(),
     ssl_active: true,

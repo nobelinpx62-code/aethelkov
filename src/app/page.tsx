@@ -212,7 +212,7 @@ export default function DashboardPage() {
               {/* Cartões de Telemetria e Alocação */}
               {activeNavTab === 'overview' && (
                 <section className="w-full">
-                  <MetricsBanner stats={stats} />
+                  <MetricsBanner stats={stats} bots={bots} />
                 </section>
               )}
 

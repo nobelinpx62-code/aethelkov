@@ -12,11 +12,11 @@ interface MetricsBannerProps {
 
 export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [], extraRamMb = 0 }) => {
   const quotaMb = 100 + extraRamMb;
-  const activeBots = bots.filter((b) => b.status === 'ONLINE');
-  const allocatedRam = activeBots.reduce((sum, b) => sum + (b.ram_limit_mb || 100), 0);
+  // Todas as instâncias cadastradas (sejam online ou paradas) reservam no mínimo 100 MB da cota
+  const allocatedRam = bots.reduce((sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100), 0);
   const usedRamMb = Math.min(allocatedRam, quotaMb);
   const usagePercent = Math.min(Math.round((usedRamMb / quotaMb) * 100), 100);
-  const isAtLimit = usagePercent >= 100;
+  const isAtLimit = allocatedRam >= quotaMb;
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-5 w-full">
@@ -102,16 +102,23 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [], 
                     ? 'bg-gradient-to-r from-cyan-400 to-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.6)]'
                     : 'bg-gradient-to-r from-cyan-400 to-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.6)]'
                 }`}
-              style={{ width: `${Math.max(usagePercent, activeBots.length > 0 ? 6 : 0)}%` }}
+              style={{ width: `${Math.max(usagePercent, bots.length > 0 ? 6 : 0)}%` }}
             ></div>
           </div>
         </div>
 
-        {/* Sub-texto Exato: "Você está usando 100% da cota de 100mb" */}
-        <div className="pt-3 border-t border-white/5 font-mono text-xs">
+        {/* Sub-texto Exato com indicação clara de reserva de cota */}
+        <div className="pt-3 border-t border-white/5 font-mono text-xs flex items-center justify-between">
           <span className={isAtLimit ? 'text-rose-300 font-semibold' : 'text-neutral-300'}>
-            Você está usando {usagePercent}% da cota de {quotaMb}mb
+            {isAtLimit
+              ? `Cota esgotada: ${allocatedRam} MB / ${quotaMb} MB (100% reservado)`
+              : `${allocatedRam} MB de ${quotaMb} MB reservado (${bots.length} aplicação)`}
           </span>
+          {isAtLimit && (
+            <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20">
+              100% Cota
+            </span>
+          )}
         </div>
       </div>
 

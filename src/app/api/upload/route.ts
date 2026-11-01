@@ -48,6 +48,33 @@ export async function POST(req: NextRequest) {
       }, { status: 400 });
     }
 
+    // Validação estrita de cota de memória RAM:
+    // O mínimo por aplicação é 100 MB (definido no aethel.config / discloud.config).
+    // Com 100 MB de cota, o usuário só pode criar UMA aplicação.
+    const { data: existingBots } = await supabase
+      .from('aethel_bots')
+      .select('id, bot_name, ram_limit_mb, token_encrypted');
+
+    const matchingBot = (existingBots || []).find(
+      (b) => b.token_encrypted === inspected.token || b.bot_name.toLowerCase() === inspected.name.toLowerCase()
+    );
+
+    const userQuotaMb = 100;
+    const requiredRam = Math.max(inspected.ramLimitMb || 100, 100);
+
+    if (!matchingBot) {
+      const currentReservedRam = (existingBots || []).reduce(
+        (sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100),
+        0
+      );
+
+      if (currentReservedRam + requiredRam > userQuotaMb || (existingBots || []).length >= 1) {
+        return NextResponse.json({
+          error: `Limite de Cota de Memória Atingido! Seu plano possui ${userQuotaMb} MB de limite e o consumo mínimo por aplicação é 100 MB (reservado para sua instância). Você já possui ${(existingBots || []).length} aplicação ativa consumindo ${currentReservedRam} MB. Para criar uma nova aplicação, você precisa excluir a existente primeiro.`,
+        }, { status: 403 });
+      }
+    }
+
     // Salva o arquivo ZIP no Supabase Storage
     const storagePath = `deployments/${Date.now()}_${file.name}`;
     const { error: storageError } = await supabase.storage
@@ -61,23 +88,43 @@ export async function POST(req: NextRequest) {
       console.warn('[Upload] Aviso ao salvar no Storage:', storageError.message);
     }
 
-    // Registra o bot no banco de dados via RPC
-    const { data: botData, error: dbError } = await supabase.rpc('register_or_update_bot', {
-      p_user_id: 'default-user',
-      p_bot_name: inspected.name,
-      p_platform: inspected.platform,
-      p_token_encrypted: inspected.token,
-      p_ram_limit_mb: inspected.ramLimitMb,
-      p_main_file: inspected.mainFile,
-      p_config_type: inspected.configType,
-      p_assigned_node: 'farol-alpha',
-    });
+    let botId: string;
+    let resultBotData: any = null;
 
-    if (dbError) {
-      return NextResponse.json({ error: dbError.message }, { status: 500 });
+    if (matchingBot) {
+      // Se for a mesma aplicação (mesmo token ou nome), atualiza os dados em vez de duplicar
+      botId = matchingBot.id;
+      resultBotData = { bot_id: botId, updated: true };
+      await supabase
+        .from('aethel_bots')
+        .update({
+          bot_name: inspected.name,
+          main_file: inspected.mainFile,
+          config_type: inspected.configType,
+          ram_limit_mb: requiredRam,
+          storage_size_bytes: file.size,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', botId);
+    } else {
+      // Registra o novo bot no banco de dados via RPC
+      const { data: botData, error: dbError } = await supabase.rpc('register_or_update_bot', {
+        p_user_id: 'default-user',
+        p_bot_name: inspected.name,
+        p_platform: inspected.platform,
+        p_token_encrypted: inspected.token,
+        p_ram_limit_mb: requiredRam,
+        p_main_file: inspected.mainFile,
+        p_config_type: inspected.configType,
+        p_assigned_node: 'farol-alpha',
+      });
+
+      if (dbError) {
+        return NextResponse.json({ error: dbError.message }, { status: 500 });
+      }
+      resultBotData = botData;
+      botId = botData?.bot_id;
     }
-
-    const botId = botData?.bot_id;
 
     // Atualiza o tamanho do storage no registro
     if (botId) {
@@ -124,7 +171,7 @@ export async function POST(req: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      bot: botData,
+      bot: resultBotData,
       botId,
       inspected: {
         name: inspected.name,

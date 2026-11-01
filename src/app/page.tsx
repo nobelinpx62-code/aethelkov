@@ -231,6 +231,11 @@ export default function DashboardPage() {
     setTimeout(() => setNotification(null), 6000);
   };
 
+  // Cálculo de Cota de Memória Total e Reserva por Aplicações (mínimo 100 MB por bot)
+  const totalQuotaMb = 100 + extraRamMb;
+  const totalReservedRam = bots.reduce((sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100), 0);
+  const isQuotaExceeded = totalReservedRam >= totalQuotaMb;
+
   // Resgate de Código Promocional Concluído
   const handleCodeRedeemed = (ramMb: number, msg: string) => {
     const key = getUserKey(currentUser);
@@ -337,10 +342,20 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-3">
                     <button
                       onClick={() => setIsDeployOpen(true)}
-                      className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold tracking-wide text-white"
+                      className={`apple-pill-btn flex items-center gap-2 rounded-full px-5 py-2.5 text-xs font-semibold tracking-wide text-white transition-all ${
+                        isQuotaExceeded
+                          ? 'bg-rose-500/20 border border-rose-500/40 text-rose-300 hover:bg-rose-500/30'
+                          : 'apple-pill-primary'
+                      }`}
+                      title={isQuotaExceeded ? 'Cota esgotada (100 MB / 100 MB reservados)' : 'Criar nova instância'}
                     >
                       <Plus className="h-4 w-4" />
                       <span>Nova Instância</span>
+                      {isQuotaExceeded && (
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/30 text-rose-200 border border-rose-500/40 font-mono">
+                          1/1 Cota Cheia
+                        </span>
+                      )}
                     </button>
                   </div>
                 </section>
@@ -402,6 +417,8 @@ export default function DashboardPage() {
         {isDeployOpen && (
           <DeployModal
             isOpen={isDeployOpen}
+            existingBots={bots}
+            totalQuotaMb={totalQuotaMb}
             onClose={() => setIsDeployOpen(false)}
             onSuccess={() => {
               fetchBotsAndStats();

@@ -14,7 +14,7 @@ import {
   Key,
   ShieldCheck
 } from 'lucide-react';
-import { BotPlatform } from '@/lib/types';
+import { BotPlatform, AethelBot } from '@/lib/types';
 import { inspectZipBot, detectPlatformFromToken, InspectedBotData } from '@/lib/botInspector';
 import JSZip from 'jszip';
 
@@ -22,12 +22,16 @@ interface DeployModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: () => void;
+  existingBots?: AethelBot[];
+  totalQuotaMb?: number;
 }
 
 export const DeployModal: React.FC<DeployModalProps> = ({ 
   isOpen, 
   onClose, 
-  onSuccess 
+  onSuccess,
+  existingBots = [],
+  totalQuotaMb = 100,
 }) => {
   const [activeTab, setActiveTab] = useState<'zip' | 'manual'>('zip');
   
@@ -47,6 +51,13 @@ export const DeployModal: React.FC<DeployModalProps> = ({
   const [ram, setRam] = useState(100);
   const [mainFile, setMainFile] = useState('index.js');
   const [configType, setConfigType] = useState<'aethel' | 'discloud'>('aethel');
+
+  // Validação de cota de memória RAM: cada aplicação reserva no mínimo 100 MB
+  const currentReservedRam = existingBots.reduce(
+    (sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100),
+    0
+  );
+  const isQuotaExceeded = currentReservedRam >= totalQuotaMb;
 
   // Função central para resetar todo o formulário (sem resquícios de deploys anteriores)
   const resetState = () => {
@@ -271,6 +282,31 @@ export const DeployModal: React.FC<DeployModalProps> = ({
           </button>
         </div>
 
+        {/* Alerta de Cota Esgotada (Máx 1 Aplicação com 100 MB de RAM) */}
+        {isQuotaExceeded && (
+          <div className="mx-6 mt-4 p-4 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-mono space-y-2 animate-fadeIn">
+            <div className="flex items-center gap-2 font-bold text-rose-400">
+              <AlertCircle className="w-4 h-4 shrink-0" />
+              <span>LIMITE DE COTA DE MEMÓRIA ATINGIDO ({currentReservedRam} MB / {totalQuotaMb} MB)</span>
+            </div>
+            <p className="text-neutral-300 leading-relaxed">
+              O consumo mínimo por aplicação é de <strong>100 MB</strong> (definido no <code>aethel.config</code> e <code>discloud.config</code>). 
+              Como sua cota é de <strong>{totalQuotaMb} MB</strong>, os 100 MB já estão <strong>100% reservados</strong> para sua aplicação atual:
+            </p>
+            <div className="p-2.5 rounded-xl bg-black/50 border border-white/10 text-[11px] text-neutral-300 space-y-1">
+              {existingBots.map((b) => (
+                <div key={b.id} className="flex items-center justify-between">
+                  <span className="font-semibold text-white">&bull; {b.bot_name}</span>
+                  <span className="text-cyan-300 font-semibold">{Math.max(b.ram_limit_mb || 100, 100)} MB Reservados</span>
+                </div>
+              ))}
+            </div>
+            <p className="text-neutral-400 text-[11px]">
+              Para criar uma nova aplicação, você precisa primeiro <strong>excluir a aplicação existente</strong> através das opções da instância.
+            </p>
+          </div>
+        )}
+
         {/* Error Alert */}
         {uploadError && (
           <div className="mx-6 mt-4 p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs font-mono flex items-start gap-2.5 animate-fadeIn">
@@ -411,10 +447,14 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading || !zipFile}
-                  className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50 flex items-center gap-2"
+                  disabled={isUploading || isQuotaExceeded || !zipFile}
+                  className={`apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white flex items-center gap-2 ${
+                    isQuotaExceeded || !zipFile ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
-                  {isUploading ? (
+                  {isQuotaExceeded ? (
+                    <span>Cota Esgotada (100 MB Reservados)</span>
+                  ) : isUploading ? (
                     <>
                       <Sparkles className="w-4 h-4 animate-spin" />
                       <span>Fazendo Deploy...</span>
@@ -523,10 +563,16 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                 </button>
                 <button
                   type="submit"
-                  disabled={isUploading}
-                  className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white disabled:opacity-50"
+                  disabled={isUploading || isQuotaExceeded}
+                  className={`apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white ${
+                    isQuotaExceeded ? 'opacity-50 cursor-not-allowed' : ''
+                  }`}
                 >
-                  {isUploading ? 'Criando...' : 'Registrar Instância'}
+                  {isQuotaExceeded
+                    ? 'Cota Esgotada (100 MB Reservados)'
+                    : isUploading
+                    ? 'Criando...'
+                    : 'Registrar Instância'}
                 </button>
               </div>
             </form>

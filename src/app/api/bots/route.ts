@@ -41,25 +41,69 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Nome, token e plataforma são obrigatórios.' }, { status: 400 });
     }
 
-    const maxAllowedRam = Math.min(ram_limit_mb || 100, 100);
+    // Validação de cota de memória RAM: 100 MB por aplicação
+    const { data: existingBots } = await supabase
+      .from('aethel_bots')
+      .select('id, bot_name, ram_limit_mb, token_encrypted');
 
-    // Executa a função RPC do Supabase
-    const { data, error } = await supabase.rpc('register_or_update_bot', {
-      p_user_id: 'default-user',
-      p_bot_name: bot_name,
-      p_platform: platform,
-      p_token_encrypted: token,
-      p_ram_limit_mb: maxAllowedRam,
-      p_main_file: main_file || 'index.js',
-      p_config_type: config_type || 'aethel',
-      p_assigned_node: assigned_node || 'farol-alpha',
-    });
+    const matchingBot = (existingBots || []).find(
+      (b) => b.token_encrypted === token || b.bot_name.toLowerCase() === bot_name.toLowerCase()
+    );
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+    const userQuotaMb = 100;
+    const requiredRam = Math.max(ram_limit_mb || 100, 100);
+
+    if (!matchingBot) {
+      const currentReservedRam = (existingBots || []).reduce(
+        (sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100),
+        0
+      );
+
+      if (currentReservedRam + requiredRam > userQuotaMb || (existingBots || []).length >= 1) {
+        return NextResponse.json({
+          error: `Limite de Cota de Memória Atingido! Seu plano possui ${userQuotaMb} MB de limite e o consumo mínimo por aplicação é 100 MB. Você já possui ${(existingBots || []).length} aplicação ativa consumindo ${currentReservedRam} MB. Para criar uma nova aplicação, você precisa excluir a existente primeiro.`,
+        }, { status: 403 });
+      }
     }
 
-    const botId = data?.bot_id;
+    let botId: string;
+    let resultBotData: any = null;
+
+    if (matchingBot) {
+      botId = matchingBot.id;
+      resultBotData = { bot_id: botId, updated: true };
+      await supabase
+        .from('aethel_bots')
+        .update({
+          bot_name,
+          platform,
+          token_encrypted: token,
+          ram_limit_mb: requiredRam,
+          main_file: main_file || 'index.js',
+          config_type: config_type || 'aethel',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', botId);
+    } else {
+      // Executa a função RPC do Supabase
+      const { data, error } = await supabase.rpc('register_or_update_bot', {
+        p_user_id: 'default-user',
+        p_bot_name: bot_name,
+        p_platform: platform,
+        p_token_encrypted: token,
+        p_ram_limit_mb: requiredRam,
+        p_main_file: main_file || 'index.js',
+        p_config_type: config_type || 'aethel',
+        p_assigned_node: assigned_node || 'farol-alpha',
+      });
+
+      if (error) {
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      resultBotData = data;
+      botId = data?.bot_id;
+    }
 
     // Se for Discord, despacha SPAWN_BOT para o nó do Farol via Supabase Realtime Broadcast
     if (platform === 'DISCORD' && botId) {
@@ -82,7 +126,7 @@ export async function POST(req: NextRequest) {
       } catch (_) {}
     }
 
-    return NextResponse.json({ success: true, bot: data });
+    return NextResponse.json({ success: true, bot: resultBotData, botId });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }

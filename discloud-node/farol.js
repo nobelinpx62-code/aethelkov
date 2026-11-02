@@ -25,6 +25,8 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const activeSockets = new Map();
 const activeTimers = new Map();
+// Rastreia em qual canal de voz o último usuário esteve no servidor: guildId -> channelId
+const latestUserVoiceChannel = new Map();
 
 async function logTelemetry(botId, level, message) {
   const formatted = `[${NODE_ID}] ${message}`;
@@ -81,6 +83,47 @@ async function initMesh() {
       console.log(`[${NODE_ID}] Recebido comando KILL_BOT para: ${botId}`);
       disconnectGateway(botId);
     })
+    .on('broadcast', { event: 'CONNECT_VOICE' }, (p) => {
+      const { botId, guildId, channelId } = p.payload;
+      console.log(`[${NODE_ID}] Recebido comando CONNECT_VOICE para guild: ${guildId}`);
+      const session = activeSockets.get(botId);
+      if (session && session.ws.readyState === WebSocket.OPEN) {
+        const target = channelId || latestUserVoiceChannel.get(guildId) || null;
+        if (target) {
+          session.ws.send(
+            JSON.stringify({
+              op: 4,
+              d: {
+                guild_id: guildId,
+                channel_id: target,
+                self_mute: false,
+                self_deaf: true,
+              },
+            })
+          );
+          logTelemetry(botId, 'GATEWAY', `[Voice-Connect] Conectando ao canal de voz: ${target}`);
+        }
+      }
+    })
+    .on('broadcast', { event: 'DISCONNECT_VOICE' }, (p) => {
+      const { botId, guildId } = p.payload;
+      console.log(`[${NODE_ID}] Recebido comando DISCONNECT_VOICE para guild: ${guildId}`);
+      const session = activeSockets.get(botId);
+      if (session && session.ws.readyState === WebSocket.OPEN) {
+        session.ws.send(
+          JSON.stringify({
+            op: 4,
+            d: {
+              guild_id: guildId,
+              channel_id: null,
+              self_mute: false,
+              self_deaf: false,
+            },
+          })
+        );
+        logTelemetry(botId, 'GATEWAY', `[Voice-Disconnect] Desconectado da call com sucesso.`);
+      }
+    })
     .subscribe((status) => {
       console.log(`[${NODE_ID}] Canal Realtime Mesh conectado com status: ${status}`);
     });
@@ -117,20 +160,22 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
         // GUILDS (1) + GUILD_VOICE_STATES (128) + GUILD_MESSAGES (512) + DIRECT_MESSAGES (4096)
         // Se attemptWithoutPrivileged = false, inclui MESSAGE_CONTENT (32768)
         const baseIntents = 1 | 128 | 512 | 4096;
-        const finalIntents = attemptWithoutPrivileged ? baseIntents : (baseIntents | 32768);
+        const finalIntents = attemptWithoutPrivileged ? baseIntents : baseIntents | 32768;
 
-        ws.send(JSON.stringify({
-          op: 2,
-          d: {
-            token: token.trim(),
-            intents: finalIntents,
-            properties: { os: 'linux', browser: 'aethelkov', device: 'aethel-mesh' },
-            presence: {
-              status: 'online',
-              activities: [{ name: 'Aethelkov v3.0 Universal', type: 0 }],
+        ws.send(
+          JSON.stringify({
+            op: 2,
+            d: {
+              token: token.trim(),
+              intents: finalIntents,
+              properties: { os: 'linux', browser: 'aethelkov', device: 'aethel-mesh' },
+              presence: {
+                status: 'online',
+                activities: [{ name: '!music <nome> 🎶', type: 2 }],
+              },
             },
-          },
-        }));
+          })
+        );
 
         logTelemetry(botId, 'INFO', `Identificado no Gateway com sucesso (Intents: ${finalIntents}). Status verde ativo!`);
       }
@@ -140,8 +185,23 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
         ws.send(JSON.stringify({ op: 1, d: lastSeq }));
       }
 
-      // Repassa eventos de voz para que a Vercel e o Lavalink coordenem o áudio
-      if (t === 'VOICE_STATE_UPDATE' || t === 'VOICE_SERVER_UPDATE') {
+      // Rastreia o canal de voz onde os usuários entram
+      if (t === 'VOICE_STATE_UPDATE' && d) {
+        if (d.guild_id && d.channel_id) {
+          latestUserVoiceChannel.set(d.guild_id, d.channel_id);
+        }
+
+        // Repassa eventos de voz para que a Vercel e o Lavalink coordenem o áudio
+        postToVercel({
+          botId,
+          token,
+          type: 'VOICE_EVENT',
+          event: t,
+          data: d,
+        });
+      }
+
+      if (t === 'VOICE_SERVER_UPDATE' && d) {
         postToVercel({
           botId,
           token,
@@ -209,7 +269,9 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
 
   ws.on('error', (err) => {
     logTelemetry(botId, 'ERROR', `Erro de Socket: ${err.message}`);
-    try { ws.close(); } catch (_) {}
+    try {
+      ws.close();
+    } catch (_) {}
   });
 
   activeSockets.set(botId, { ws, heartbeat, botName });
@@ -221,7 +283,6 @@ function scheduleCron(botId, intervalSec, token) {
     activeTimers.delete(botId);
   }
 
-  // Agendamento seguro com piso mínimo de 10s
   const safeInterval = Math.max(intervalSec || 0, 10);
 
   if (intervalSec && intervalSec >= 10) {

@@ -14,7 +14,12 @@
 /build
 
 # Environment files
+.env
 .env*.local
+.env.*
+*.zip
+/bot-musica-aethel/
+/bot-musica-aethel.zip
 
 # Logs
 npm-debug.log*

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateApiRequest } from '@/lib/serverApiAuth';
 import { inspectZipBot } from '@/lib/botInspector';
+import { parseAndShimZip } from '@/lib/loader/universalParser';
 import JSZip from 'jszip';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ const MAX_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB limite estrito
 
 /**
  * POST /api/v1/upload
- * Faz upload e implanta um novo bot via REST API
+ * Faz upload e implanta um novo bot via REST API com Universal Shim v3.0
  * Estilo Discloud: https://api.discloud.app/v2/upload
  */
 export async function POST(req: NextRequest) {
@@ -60,9 +61,11 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const inspected = await inspectZipBot(zip, manualToken);
+    const shimResult = await parseAndShimZip(fileBuffer);
+    const inspected = await inspectZipBot(zip, manualToken || shimResult.metadata.token || undefined);
+    const effectiveToken = inspected.token || shimResult.metadata.token;
 
-    if (!inspected.token) {
+    if (!effectiveToken) {
       return NextResponse.json(
         {
           status: 'error',
@@ -79,7 +82,7 @@ export async function POST(req: NextRequest) {
       .select('id, bot_name, ram_limit_mb, token_encrypted');
 
     const matchingBot = (existingBots || []).find(
-      (b) => b.token_encrypted === inspected.token || b.bot_name.toLowerCase() === inspected.name.toLowerCase()
+      (b) => b.token_encrypted === effectiveToken || b.bot_name.toLowerCase() === inspected.name.toLowerCase()
     );
 
     const userQuotaMb = 100;
@@ -104,7 +107,9 @@ export async function POST(req: NextRequest) {
     }
 
     const storagePath = `deployments/${Date.now()}_api_${file.name}`;
-    await supabase.storage.from('aethel-deployments').upload(storagePath, fileBuffer, {
+    const uploadBuffer = shimResult.modifiedZip || Buffer.from(fileBuffer);
+
+    await supabase.storage.from('aethel-deployments').upload(storagePath, uploadBuffer, {
       contentType: 'application/zip',
       upsert: true,
     });
@@ -117,7 +122,7 @@ export async function POST(req: NextRequest) {
         .from('aethel_bots')
         .update({
           bot_name: inspected.name,
-          main_file: inspected.mainFile,
+          main_file: inspected.mainFile || shimResult.metadata.entrypoint,
           config_type: inspected.configType,
           ram_limit_mb: requiredRam,
           storage_size_bytes: file.size,
@@ -131,9 +136,9 @@ export async function POST(req: NextRequest) {
         p_user_id: 'api-user',
         p_bot_name: inspected.name,
         p_platform: inspected.platform,
-        p_token_encrypted: inspected.token,
+        p_token_encrypted: effectiveToken,
         p_ram_limit_mb: requiredRam,
-        p_main_file: inspected.mainFile,
+        p_main_file: inspected.mainFile || shimResult.metadata.entrypoint,
         p_config_type: inspected.configType,
         p_assigned_node: 'farol-alpha',
       });
@@ -153,11 +158,22 @@ export async function POST(req: NextRequest) {
         .update({ storage_size_bytes: file.size })
         .eq('id', botId);
 
+      try {
+        await supabase
+          .from('aethel_bots')
+          .update({
+            runtime_mode: 'UNIVERSAL_SHIM_v3',
+            detected_entrypoint: shimResult.metadata.entrypoint,
+            cron_interval_sec: shimResult.metadata.cronIntervalSec,
+          })
+          .eq('id', botId);
+      } catch (_) {}
+
       if (inspected.platform === 'TELEGRAM') {
         const webhookUrl = `https://aethelkov.vercel.app/api/telegram?botId=${botId}`;
         try {
           await fetch(
-            `https://api.telegram.org/bot${inspected.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
+            `https://api.telegram.org/bot${effectiveToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
           );
         } catch (_) {}
       }
@@ -165,21 +181,23 @@ export async function POST(req: NextRequest) {
       await supabase.from('aethel_logs').insert({
         bot_id: botId,
         log_level: 'INFO',
-        message: `[API REST v1 Upload] Aplicação implantada com sucesso via POST /api/v1/upload. Plataforma: ${inspected.platform}.`,
+        message: `[API REST v3.0] Aplicação implantada com Universal Shim. Plataforma: ${inspected.platform}.`,
       });
     }
 
     return NextResponse.json({
       status: 'ok',
       statusCode: 200,
-      message: 'Aplicação implantada com sucesso na malha Aethel Cloud!',
+      message: 'Aplicação implantada com sucesso na malha Aethel Cloud (Universal Shim v3.0 ativo)!',
       app: {
         id: botId,
         name: inspected.name,
         platform: inspected.platform,
-        main: inspected.mainFile,
+        main: inspected.mainFile || shimResult.metadata.entrypoint,
         ram: requiredRam,
         online: true,
+        runtimeMode: 'UNIVERSAL_SHIM_v3',
+        usesVoice: shimResult.metadata.usesVoice,
       },
     });
   } catch (err: any) {
@@ -189,4 +207,3 @@ export async function POST(req: NextRequest) {
     );
   }
 }
-

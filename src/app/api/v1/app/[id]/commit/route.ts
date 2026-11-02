@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { authenticateApiRequest } from '@/lib/serverApiAuth';
 import { inspectZipBot } from '@/lib/botInspector';
+import { parseAndShimZip } from '@/lib/loader/universalParser';
 import JSZip from 'jszip';
 
 export const dynamic = 'force-dynamic';
@@ -10,7 +11,7 @@ const MAX_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB limite estrito
 
 /**
  * PUT /api/v1/app/[id]/commit
- * Atualiza os arquivos do bot via upload ZIP sem alterar o ID
+ * Atualiza os arquivos do bot via upload ZIP aplicando o Universal Shim v3.0
  * Estilo Discloud: https://api.discloud.app/v2/app/:id/commit
  */
 export async function PUT(
@@ -59,10 +60,13 @@ export async function PUT(
 
     const fileBuffer = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(fileBuffer);
+    const shimResult = await parseAndShimZip(fileBuffer);
     const inspected = await inspectZipBot(zip, bot.token_encrypted);
 
     const storagePath = `deployments/${Date.now()}_commit_${file.name}`;
-    await supabase.storage.from('aethel-deployments').upload(storagePath, fileBuffer, {
+    const uploadBuffer = shimResult.modifiedZip || Buffer.from(fileBuffer);
+
+    await supabase.storage.from('aethel-deployments').upload(storagePath, uploadBuffer, {
       contentType: 'application/zip',
       upsert: true,
     });
@@ -73,7 +77,7 @@ export async function PUT(
       .from('aethel_bots')
       .update({
         bot_name: inspected.name || bot.bot_name,
-        main_file: inspected.mainFile || bot.main_file,
+        main_file: inspected.mainFile || shimResult.metadata.entrypoint || bot.main_file,
         config_type: inspected.configType || bot.config_type,
         ram_limit_mb: requiredRam,
         storage_size_bytes: file.size,
@@ -83,10 +87,21 @@ export async function PUT(
       })
       .eq('id', id);
 
+    try {
+      await supabase
+        .from('aethel_bots')
+        .update({
+          runtime_mode: 'UNIVERSAL_SHIM_v3',
+          detected_entrypoint: shimResult.metadata.entrypoint,
+          cron_interval_sec: shimResult.metadata.cronIntervalSec,
+        })
+        .eq('id', id);
+    } catch (_) {}
+
     await supabase.from('aethel_logs').insert({
       bot_id: id,
       log_level: 'INFO',
-      message: `[API REST Commit] Novo pacote implantado com sucesso via PUT /api/v1/app/${id}/commit (${(file.size / 1024).toFixed(1)} KB). Instância reiniciada.`,
+      message: `[API REST Commit v3.0] Novo pacote com Universal Shim implantado via PUT /api/v1/app/${id}/commit (${(file.size / 1024).toFixed(1)} KB). Instância reiniciada.`,
     });
 
     if (bot.platform === 'TELEGRAM') {
@@ -104,8 +119,8 @@ export async function PUT(
     return NextResponse.json({
       status: 'ok',
       statusCode: 200,
-      message: `Commit realizado com sucesso! Aplicação "${bot.bot_name}" atualizada e reiniciada.`,
-      logs: `[Aethel-Deploy] Commit v1 finalizado. Arquivo principal: ${inspected.mainFile}.`,
+      message: `Commit realizado com sucesso! Aplicação "${bot.bot_name}" atualizada com Universal Shim v3.0.`,
+      logs: `[Aethel-Deploy v3.0] Commit finalizado. Ponto de entrada: ${shimResult.metadata.entrypoint}. Voz: ${shimResult.metadata.usesVoice ? 'Sim' : 'Não'}.`,
     });
   } catch (err: any) {
     return NextResponse.json(
@@ -114,4 +129,3 @@ export async function PUT(
     );
   }
 }
-

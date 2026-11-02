@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { inspectZipBot } from '@/lib/botInspector';
+import { parseAndShimZip } from '@/lib/loader/universalParser';
 import JSZip from 'jszip';
 
 const MAX_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB limite estrito
@@ -23,7 +24,7 @@ export async function POST(req: NextRequest) {
 
     const fileBuffer = await file.arrayBuffer();
 
-    // Inspeciona o arquivo ZIP
+    // Inspeciona e injeta o Universal Shim v3.0 transparente
     const zip = await JSZip.loadAsync(fileBuffer);
 
     // Validação de cota descompactada
@@ -39,24 +40,26 @@ export async function POST(req: NextRequest) {
       }, { status: 413 });
     }
 
-    // Inspeção profunda e inteligente de token, plataforma e configuração
-    const inspected = await inspectZipBot(zip, manualToken);
+    // Processamento do Universal Shim e extração profunda de metadados
+    const shimResult = await parseAndShimZip(fileBuffer);
+    const inspected = await inspectZipBot(zip, manualToken || shimResult.metadata.token || undefined);
 
-    if (!inspected.token) {
+    const effectiveToken = inspected.token || shimResult.metadata.token;
+
+    if (!effectiveToken) {
       return NextResponse.json({
         error: 'Não foi possível encontrar o token do bot nos arquivos (verificamos discloud.config, aethel.config, .env e o código-fonte). Por favor, informe o token no campo de autenticação.',
       }, { status: 400 });
     }
 
     // Validação estrita de cota de memória RAM:
-    // O mínimo por aplicação é 100 MB (definido no aethel.config / discloud.config).
-    // Com 100 MB de cota, o usuário só pode criar UMA aplicação.
+    // O mínimo por aplicação é 100 MB. Com 100 MB de cota, o usuário só pode criar UMA aplicação.
     const { data: existingBots } = await supabase
       .from('aethel_bots')
       .select('id, bot_name, ram_limit_mb, token_encrypted');
 
     const matchingBot = (existingBots || []).find(
-      (b) => b.token_encrypted === inspected.token || b.bot_name.toLowerCase() === inspected.name.toLowerCase()
+      (b) => b.token_encrypted === effectiveToken || b.bot_name.toLowerCase() === inspected.name.toLowerCase()
     );
 
     const userQuotaMb = 100;
@@ -75,11 +78,13 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Salva o arquivo ZIP no Supabase Storage
+    // Salva o arquivo ZIP com o Universal Shim injetado no Supabase Storage
     const storagePath = `deployments/${Date.now()}_${file.name}`;
+    const uploadBuffer = shimResult.modifiedZip || Buffer.from(fileBuffer);
+
     const { error: storageError } = await supabase.storage
       .from('aethel-deployments')
-      .upload(storagePath, fileBuffer, {
+      .upload(storagePath, uploadBuffer, {
         contentType: 'application/zip',
         upsert: true,
       });
@@ -92,14 +97,13 @@ export async function POST(req: NextRequest) {
     let resultBotData: any = null;
 
     if (matchingBot) {
-      // Se for a mesma aplicação (mesmo token ou nome), atualiza os dados em vez de duplicar
       botId = matchingBot.id;
       resultBotData = { bot_id: botId, updated: true };
       await supabase
         .from('aethel_bots')
         .update({
           bot_name: inspected.name,
-          main_file: inspected.mainFile,
+          main_file: inspected.mainFile || shimResult.metadata.entrypoint,
           config_type: inspected.configType,
           ram_limit_mb: requiredRam,
           storage_size_bytes: file.size,
@@ -107,14 +111,13 @@ export async function POST(req: NextRequest) {
         })
         .eq('id', botId);
     } else {
-      // Registra o novo bot no banco de dados via RPC
       const { data: botData, error: dbError } = await supabase.rpc('register_or_update_bot', {
         p_user_id: 'default-user',
         p_bot_name: inspected.name,
         p_platform: inspected.platform,
-        p_token_encrypted: inspected.token,
+        p_token_encrypted: effectiveToken,
         p_ram_limit_mb: requiredRam,
-        p_main_file: inspected.mainFile,
+        p_main_file: inspected.mainFile || shimResult.metadata.entrypoint,
         p_config_type: inspected.configType,
         p_assigned_node: 'farol-alpha',
       });
@@ -126,20 +129,37 @@ export async function POST(req: NextRequest) {
       botId = botData?.bot_id;
     }
 
-    // Atualiza o tamanho do storage no registro
+    // Atualiza metadados v3.0 (com tolerância a esquemas legados)
     if (botId) {
       await supabase
         .from('aethel_bots')
         .update({ storage_size_bytes: file.size })
         .eq('id', botId);
 
-      // Se for Discord, emite comando SPAWN_BOT para o nó do Farol via Realtime
+      try {
+        await supabase
+          .from('aethel_bots')
+          .update({
+            runtime_mode: 'UNIVERSAL_SHIM_v3',
+            detected_entrypoint: shimResult.metadata.entrypoint,
+            cron_interval_sec: shimResult.metadata.cronIntervalSec,
+          })
+          .eq('id', botId);
+      } catch (_) {}
+
+      // Se for Discord, emite comando SPAWN_BOT para o nó do Farol via Realtime com metadados v3
       if (inspected.platform === 'DISCORD') {
         const channel = supabase.channel('mesh_control_farol-alpha');
         await channel.send({
           type: 'broadcast',
           event: 'SPAWN_BOT',
-          payload: { botId, token: inspected.token, botName: inspected.name },
+          payload: {
+            botId,
+            token: effectiveToken,
+            botName: inspected.name,
+            cronInterval: shimResult.metadata.cronIntervalSec,
+            usesVoice: shimResult.metadata.usesVoice,
+          },
         });
       }
 
@@ -148,7 +168,7 @@ export async function POST(req: NextRequest) {
         const webhookUrl = `https://aethelkov.vercel.app/api/telegram?botId=${botId}`;
         try {
           const tgRes = await fetch(
-            `https://api.telegram.org/bot${inspected.token}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
+            `https://api.telegram.org/bot${effectiveToken}/setWebhook?url=${encodeURIComponent(webhookUrl)}&drop_pending_updates=true`
           );
           const tgData = await tgRes.json();
           await supabase.from('aethel_logs').insert({
@@ -161,11 +181,11 @@ export async function POST(req: NextRequest) {
         }
       }
 
-      // Registra log da auto-detecção
+      // Registra log da auto-detecção com Universal Shim
       await supabase.from('aethel_logs').insert({
         bot_id: botId,
         log_level: 'INFO',
-        message: `[Aethel-Core] Aplicação detectada automaticamente como ${inspected.platform} (${inspected.detectionDetails.platformReason}). Token extraído de: ${inspected.detectionDetails.tokenSource || 'upload'}.`,
+        message: `[Aethel-Core v3.0] Aplicação implantada com Universal Shim. Plataforma: ${inspected.platform} | Voz: ${shimResult.metadata.usesVoice ? 'Sim (Lavalink)' : 'Não'} | BD Local: ${shimResult.metadata.usesLocalDb ? 'Sim' : 'Não'}.`,
       });
     }
 
@@ -176,10 +196,13 @@ export async function POST(req: NextRequest) {
       inspected: {
         name: inspected.name,
         platform: inspected.platform,
-        mainFile: inspected.mainFile,
+        mainFile: inspected.mainFile || shimResult.metadata.entrypoint,
         ramLimitMb: inspected.ramLimitMb,
         detectionReason: inspected.detectionDetails.platformReason,
         tokenSource: inspected.detectionDetails.tokenSource,
+        usesVoice: shimResult.metadata.usesVoice,
+        usesLocalDb: shimResult.metadata.usesLocalDb,
+        cronIntervalSec: shimResult.metadata.cronIntervalSec,
       },
       fileSizeMb: (file.size / (1024 * 1024)).toFixed(2),
     });

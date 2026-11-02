@@ -26,11 +26,25 @@ import {
   Gift,
   Sparkles,
   Copy,
-  Check
+  Check,
+  Music,
+  Volume2,
+  Radio,
+  Headphones
 } from 'lucide-react';
 import { AethelBot } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
 import { NodeDetailModal } from '@/components/NodeDetailModal';
+import {
+  getFarolDiscloudConfig,
+  getFarolPackageJson,
+  getFarolNodeScript,
+  getMusicBotDiscloudConfig,
+  getMusicBotPackageJson,
+  getMusicBotEnv,
+  getMusicBotReadme,
+  getMusicBotScript,
+} from '@/lib/botTemplates';
 import { 
   getPromoCodes, 
   createPromoCode, 
@@ -188,12 +202,30 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [selectedNode, setSelectedNode] = useState<DiscoveredNode | null>(null);
   const [adminToast, setAdminToast] = useState<string | null>(null);
 
-  // Gerador Manual de Nós
+  // Gerador de Pacotes com Suporte a Voz e Áudio (.ZIP)
+  const [generatorType, setGeneratorType] = useState<'farol' | 'music_standalone'>('farol');
   const [genNodeName, setGenNodeName] = useState('farol-bravo');
   const [genOffset, setGenOffset] = useState(50);
   const [genLimit, setGenLimit] = useState(50);
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
+
+  // Estados específicos para o Bot de Música Autônomo
+  const [genMusicBotName, setGenMusicBotName] = useState('aethel-music');
+  const [genMusicToken, setGenMusicToken] = useState('');
+  const [genLavalinkHost, setGenLavalinkHost] = useState('lavalink.serenetia.com');
+  const [genLavalinkPass, setGenLavalinkPass] = useState('youshallnotpass');
+  const [showMusicToken, setShowMusicToken] = useState(false);
+
+  // Auto-preenche token do Discord caso haja um bot já cadastrado
+  useEffect(() => {
+    if (!genMusicToken && bots && bots.length > 0) {
+      const discordBot = bots.find((b) => b.platform === 'DISCORD' && b.token_encrypted);
+      if (discordBot?.token_encrypted) {
+        setGenMusicToken(discordBot.token_encrypted);
+      }
+    }
+  }, [bots, genMusicToken]);
 
   // Busca os nós deletados pelo usuário para não reaparecerem no polling
   const getDeletedNodesList = (): string[] => {
@@ -418,7 +450,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     saveAccounts(updated);
   };
 
-  // Gerador dinâmico de ZIP para novo nó da Discloud com Heartbeat Automático Embutido
+  // Gerador dinâmico de ZIP para novo nó da Discloud com Voz e Heartbeat Automático Embutido
   const handleGenerateNodeZip = async () => {
     setIsGeneratingZip(true);
     setDownloadSuccess(null);
@@ -433,161 +465,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     try {
       const zip = new JSZip();
 
-      const discloudConfig = `NAME=aethel-${genNodeName.trim()}\nTYPE=bot\nMAIN=farol.js\nRAM=100\nAUTORESTART=true\nVERSION=latest\nAPT=tools\n`;
-      zip.file('discloud.config', discloudConfig);
-
-      const packageJson = JSON.stringify({
-        name: `aethel-${genNodeName.trim()}`,
-        version: "1.0.0",
-        description: `Aethelkov Core - Nó Farol (${genNodeName})`,
-        main: "farol.js",
-        dependencies: {
-          "@supabase/supabase-js": "^2.45.0",
-          "ws": "^8.18.0",
-          "dotenv": "^16.4.5"
-        }
-      }, null, 2);
-      zip.file('package.json', packageJson);
-
-      const farolScript = `/**
- * AETHELKOV CORE - AETHEL-FAROL DAEMON (Nó: ${genNodeName})
- * Shard Range: ${genOffset} a ${genOffset + genLimit - 1}
- */
-require('dotenv').config();
-const WebSocket = require('ws');
-const { createClient } = require('@supabase/supabase-js');
-
-const SUPABASE_URL = process.env.AETHEL_SUPABASE_URL || 'https://rrxrcxutdzedkqaesdkm.supabase.co';
-const SUPABASE_KEY = process.env.AETHEL_SUPABASE_KEY || 'sb_publishable_4Q59J9becXPLLqYWiOob0g_RnLJ2pvB';
-const VERCEL_DISPATCH_URL = process.env.AETHEL_DISPATCH_URL || 'https://aethelkov.vercel.app/api/dispatch';
-const INTERNAL_SECRET = process.env.AETHEL_INTERNAL_SECRET || 'aethel-secret-grid-master-key';
-
-const NODE_ID = process.env.AETHEL_NODE_ID || '${genNodeName}';
-const SHARD_OFFSET = parseInt(process.env.AETHEL_SHARD_OFFSET || '${genOffset}', 10);
-const SHARD_LIMIT = parseInt(process.env.AETHEL_SHARD_LIMIT || '${genLimit}', 10);
-
-const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const activeSessions = new Map();
-
-async function reportNodeHeartbeat() {
-  try {
-    const mem = process.memoryUsage();
-    const rssMb = parseFloat((mem.rss / 1024 / 1024).toFixed(2));
-    const payload = {
-      nodeId: NODE_ID,
-      status: 'ONLINE',
-      ramUsedMb: rssMb,
-      ramTotalMb: 100,
-      shardOffset: SHARD_OFFSET,
-      shardLimit: SHARD_LIMIT,
-      activeBots: activeSessions.size,
-      uptimeSec: Math.floor(process.uptime()),
-      timestamp: new Date().toISOString()
-    };
-    await supabase.from('aethel_logs').insert({
-      log_level: 'GATEWAY',
-      message: '[NODE_HEARTBEAT] ' + JSON.stringify(payload)
-    });
-  } catch (_) {}
-}
-
-async function initMesh() {
-  console.log('[Aethel-Farol] Nó: ' + NODE_ID + ' (Shards: ' + SHARD_OFFSET + '-' + (SHARD_OFFSET + SHARD_LIMIT - 1) + ')');
-  const { data: bots } = await supabase
-    .from('aethel_bots')
-    .select('id, bot_name, token_encrypted')
-    .eq('platform', 'DISCORD')
-    .eq('status', 'ONLINE')
-    .range(SHARD_OFFSET, SHARD_OFFSET + SHARD_LIMIT - 1);
-
-  if (bots) {
-    bots.forEach(b => spawnPresenceSocket(b.id, b.token_encrypted, b.bot_name));
-  }
-
-  supabase.channel('mesh_control_' + NODE_ID)
-    .on('broadcast', { event: 'SPAWN_BOT' }, p => spawnPresenceSocket(p.payload.botId, p.payload.token, p.payload.botName))
-    .on('broadcast', { event: 'KILL_BOT' }, p => killPresenceSocket(p.payload.botId))
-    .on('broadcast', { event: 'CONNECT_VOICE' }, p => {
-      const s = activeSessions.get(p.payload.botId);
-      if (s && s.ws.readyState === WebSocket.OPEN) {
-        const target = p.payload.channelId || latestUserVoiceChannel.get(p.payload.guildId) || null;
-        if (target) {
-          s.ws.send(JSON.stringify({ op: 4, d: { guild_id: p.payload.guildId, channel_id: target, self_mute: false, self_deaf: true } }));
-        }
-      }
-    })
-    .on('broadcast', { event: 'DISCONNECT_VOICE' }, p => {
-      const s = activeSessions.get(p.payload.botId);
-      if (s && s.ws.readyState === WebSocket.OPEN) {
-        s.ws.send(JSON.stringify({ op: 4, d: { guild_id: p.payload.guildId, channel_id: null, self_mute: false, self_deaf: false } }));
-      }
-    })
-    .subscribe();
-}
-
-const latestUserVoiceChannel = new Map();
-
-function spawnPresenceSocket(botId, token, botName) {
-  if (activeSessions.has(botId) || !token) return;
-  const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
-  let timer = null, seq = null;
-
-  ws.on('message', raw => {
-    try {
-      const msg = JSON.parse(raw.toString());
-      if (msg.s !== null) seq = msg.s;
-      if (msg.op === 10) {
-        timer = setInterval(() => { if (ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify({ op: 1, d: seq })); }, msg.d.heartbeat_interval);
-        ws.send(JSON.stringify({
-          op: 2,
-          d: {
-            token: token.trim(),
-            intents: 1 | 128 | 512 | 4096 | 32768, // GUILDS + VOICE_STATES + GUILD_MESSAGES + DIRECT + MESSAGE_CONTENT
-            properties: { os: 'linux', browser: 'aethelkov', device: 'aethelkov-grid' },
-            presence: { status: 'online', activities: [{ name: '!music <nome> 🎶', type: 2 }] }
-          }
-        }));
-      }
-      if (msg.t === 'VOICE_STATE_UPDATE' && msg.d) {
-        if (msg.d.guild_id && msg.d.channel_id) latestUserVoiceChannel.set(msg.d.guild_id, msg.d.channel_id);
-        fetch(VERCEL_DISPATCH_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
-          body: JSON.stringify({ botId, token, type: 'VOICE_EVENT', event: msg.t, data: msg.d })
-        }).catch(() => {});
-      }
-      if (msg.t === 'VOICE_SERVER_UPDATE' && msg.d) {
-        fetch(VERCEL_DISPATCH_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
-          body: JSON.stringify({ botId, token, type: 'VOICE_EVENT', event: msg.t, data: msg.d })
-        }).catch(() => {});
-      }
-      if (msg.t === 'MESSAGE_CREATE' && msg.d && !msg.d.author.bot) {
-        fetch(VERCEL_DISPATCH_URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
-          body: JSON.stringify({ botId, token, event: 'MESSAGE_CREATE', data: msg.d })
-        }).catch(() => {});
-      }
-    } catch (_) {}
-  });
-
-  ws.on('close', () => { clearInterval(timer); activeSessions.delete(botId); setTimeout(() => spawnPresenceSocket(botId, token, botName), 5000); });
-  ws.on('error', () => { try { ws.close(); } catch (_) {} });
-  activeSessions.set(botId, { ws, timer });
-}
-
-function killPresenceSocket(botId) {
-  const s = activeSessions.get(botId);
-  if (s) { clearInterval(s.timer); try { s.ws.close(); } catch (_) {} activeSessions.delete(botId); }
-}
-
-initMesh();
-reportNodeHeartbeat();
-setInterval(reportNodeHeartbeat, 15000);
-`;
-      zip.file('farol.js', farolScript);
+      zip.file('discloud.config', getFarolDiscloudConfig(genNodeName));
+      zip.file('package.json', getFarolPackageJson(genNodeName));
+      zip.file('farol.js', getFarolNodeScript({
+        nodeName: genNodeName,
+        offset: genOffset,
+        limit: genLimit,
+      }));
 
       const content = await zip.generateAsync({ type: 'blob' });
       const url = URL.createObjectURL(content);
@@ -597,9 +481,45 @@ setInterval(reportNodeHeartbeat, 15000);
       a.click();
       URL.revokeObjectURL(url);
 
-      setDownloadSuccess(`Pacote "discloud-${genNodeName.trim()}.zip" gerado com sucesso!`);
+      setDownloadSuccess(`Pacote "discloud-${genNodeName.trim()}.zip" gerado com sucesso! Já inclui suporte nativo a Voz Gateway (Opcode 4) e Lavalink.`);
     } catch (err: any) {
       alert('Erro ao gerar pacote: ' + err.message);
+    } finally {
+      setIsGeneratingZip(false);
+    }
+  };
+
+  // Gerador dinâmico de ZIP para Bot de Música Dedicado Standalone com Voz Lavalink v4
+  const handleGenerateMusicBotZip = async () => {
+    if (!genMusicToken.trim()) {
+      alert('Por favor, informe o Token do Bot do Discord antes de gerar o pacote.');
+      return;
+    }
+
+    setIsGeneratingZip(true);
+    setDownloadSuccess(null);
+
+    try {
+      const zip = new JSZip();
+      const appName = genMusicBotName.trim() || 'aethel-music';
+
+      zip.file('discloud.config', getMusicBotDiscloudConfig(appName));
+      zip.file('package.json', getMusicBotPackageJson(appName));
+      zip.file('.env', getMusicBotEnv(genMusicToken, genLavalinkHost, genLavalinkPass));
+      zip.file('LEIA-ME.txt', getMusicBotReadme(appName));
+      zip.file('bot.js', getMusicBotScript());
+
+      const content = await zip.generateAsync({ type: 'blob' });
+      const url = URL.createObjectURL(content);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${appName}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+
+      setDownloadSuccess(`Pacote "${appName}.zip" gerado com sucesso! Já configurado com áudio 24/7 e entrada automática em canais de voz.`);
+    } catch (err: any) {
+      alert('Erro ao gerar bot de música: ' + err.message);
     } finally {
       setIsGeneratingZip(false);
     }
@@ -677,8 +597,8 @@ setInterval(reportNodeHeartbeat, 15000);
               : 'text-neutral-400 hover:text-white'
           }`}
         >
-          <Download className="w-3.5 h-3.5 text-indigo-400" />
-          <span>Gerador de Nós (.ZIP)</span>
+          <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
+          <span>Gerador (.ZIP) 🔊</span>
         </button>
 
         <button
@@ -939,79 +859,260 @@ setInterval(reportNodeHeartbeat, 15000);
         </section>
       )}
 
-      {/* CONTEÚDO DA ABA 3: ÁREA MANUAL - GERADOR DE PACOTES (.ZIP) */}
+      {/* CONTEÚDO DA ABA 3: GERADOR DE PACOTES COM SUPORTE A VOZ (.ZIP) */}
       {activeTab === 'generator' && (
-        <section className="apple-glass-card rounded-[28px] p-6 border border-white/10 space-y-4 animate-fadeIn">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-              <Download className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="text-base font-bold text-white">
-                Gerador de Pacotes de Nós para a Discloud (.ZIP)
-              </h3>
-              <p className="text-xs text-neutral-400">
-                Gere o arquivo do nó com auto-discovery pré-configurado para subir em qualquer conta secundária
-              </p>
+        <section className="apple-glass-card rounded-[28px] p-6 border border-white/10 space-y-6 animate-fadeIn">
+          {/* Header com Badges */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-indigo-500/20 to-cyan-500/20 border border-cyan-500/30 text-cyan-300">
+                <Volume2 className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-white">
+                    Gerador de Pacotes com Suporte a Voz & Áudio (.ZIP)
+                  </h3>
+                  <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1">
+                    <Radio className="w-2.5 h-2.5 animate-pulse" />
+                    Lavalink v4 + Voice Gateway
+                  </span>
+                </div>
+                <p className="text-xs text-neutral-400">
+                  Gere arquivos 100% prontos para rodar na Discloud com auto-join na call do usuário e streaming de músicas 24/7.
+                </p>
+              </div>
             </div>
           </div>
 
+          {/* Feedback de Sucesso */}
           {downloadSuccess && (
-            <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>{downloadSuccess} Basta subir na Discloud e ele aparecerá na aba &quot;Nós Mesh&quot; automaticamente!</span>
+            <div className="p-3.5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5 animate-fadeIn">
+              <CheckCircle2 className="w-4 h-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold block">{downloadSuccess}</span>
+                <span className="text-emerald-400/80 text-[11px] mt-0.5 block">
+                  Basta arrastar o arquivo .zip para o painel da Discloud (discloudbot.com). No Discord, entre em uma call e digite <b>!music &lt;nome&gt;</b>!
+                </span>
+              </div>
             </div>
           )}
 
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1">Nome do Nó</label>
-              <input
-                type="text"
-                value={genNodeName}
-                onChange={(e) => setGenNodeName(e.target.value)}
-                placeholder="farol-bravo"
-                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1">Shard Offset</label>
-              <input
-                type="number"
-                value={genOffset}
-                onChange={(e) => setGenOffset(Number(e.target.value))}
-                placeholder="50"
-                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-medium text-neutral-300 mb-1">Limite de Bots (Shard)</label>
-              <input
-                type="number"
-                value={genLimit}
-                onChange={(e) => setGenLimit(Number(e.target.value))}
-                placeholder="50"
-                className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
-              />
-            </div>
-          </div>
-
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-white/5">
-            <span className="text-xs text-neutral-400 font-mono">
-              Adiciona +{genLimit} slots de bots com presença verde 24/7 sem custos
-            </span>
-
+          {/* Seletor de Tipo de Pacote */}
+          <div className="flex flex-wrap items-center gap-2 p-1.5 bg-black/40 rounded-2xl border border-white/5">
             <button
-              onClick={handleGenerateNodeZip}
-              disabled={isGeneratingZip}
-              className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white"
+              onClick={() => { setGeneratorType('farol'); setDownloadSuccess(null); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                generatorType === 'farol'
+                  ? 'bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-lg'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
             >
-              <Download className="w-3.5 h-3.5 mr-2" />
-              <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar discloud.zip'}</span>
+              <Server className="w-3.5 h-3.5" />
+              <span>Nó Farol Mesh v3.0 (Gateway Multi-Bot + Voz)</span>
+            </button>
+            <button
+              onClick={() => { setGeneratorType('music_standalone'); setDownloadSuccess(null); }}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-semibold transition-all ${
+                generatorType === 'music_standalone'
+                  ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-lg'
+                  : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Music className="w-3.5 h-3.5" />
+              <span>Bot de Música Dedicado (Player Autônomo 24/7)</span>
             </button>
           </div>
+
+          {/* MODO 1: NÓ FAROL MESH */}
+          {generatorType === 'farol' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-indigo-400 text-xs font-semibold">
+                    <Volume2 className="w-3.5 h-3.5" />
+                    <span>Gateway Opcode 4</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Conecta bots em qualquer call de voz ao receber comando de reprodução.
+                  </p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
+                    <Layers className="w-3.5 h-3.5" />
+                    <span>Até 65 Bots / Nó</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Ocupa apenas 100 MB de RAM na Discloud mantendo dezenas de bots verdes.
+                  </p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold">
+                    <Radio className="w-3.5 h-3.5" />
+                    <span>Lavalink Relay</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Encaminha credenciais de áudio e eventos para a Vercel e o cluster Lavalink.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-2">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">Identificador do Nó</label>
+                  <input
+                    type="text"
+                    value={genNodeName}
+                    onChange={(e) => setGenNodeName(e.target.value)}
+                    placeholder="farol-bravo"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">Shard Offset</label>
+                  <input
+                    type="number"
+                    value={genOffset}
+                    onChange={(e) => setGenOffset(Number(e.target.value))}
+                    placeholder="50"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">Limite de Bots (Shard)</label>
+                  <input
+                    type="number"
+                    value={genLimit}
+                    onChange={(e) => setGenLimit(Number(e.target.value))}
+                    placeholder="50"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-indigo-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-white/5">
+                <span className="text-xs text-neutral-400 font-mono">
+                  Gera discloud.config + package.json + farol.js (com voz v3.0 embutida)
+                </span>
+
+                <button
+                  onClick={handleGenerateNodeZip}
+                  disabled={isGeneratingZip}
+                  className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white flex items-center"
+                >
+                  <Download className="w-3.5 h-3.5 mr-2" />
+                  <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar Nó Farol com Voz (.ZIP)'}</span>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* MODO 2: BOT DE MÚSICA STANDALONE */}
+          {generatorType === 'music_standalone' && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold">
+                    <Headphones className="w-3.5 h-3.5" />
+                    <span>Auto-Join na Call</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Entra no canal de voz do usuário automaticamente ao digitar !music ou /music.
+                  </p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
+                    <Music className="w-3.5 h-3.5" />
+                    <span>Músicas Completas</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Busca no YouTube/SoundCloud e toca faixas inteiras sem limite de duração.
+                  </p>
+                </div>
+                <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
+                  <div className="flex items-center gap-2 text-purple-400 text-xs font-semibold">
+                    <Zap className="w-3.5 h-3.5" />
+                    <span>100% Free Discloud</span>
+                  </div>
+                  <p className="text-[11px] text-neutral-400">
+                    Ocupa menos de 25 MB RAM. Roda 24/7 sem custos em qualquer conta Free.
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">Nome do Bot (Discloud)</label>
+                  <input
+                    type="text"
+                    value={genMusicBotName}
+                    onChange={(e) => setGenMusicBotName(e.target.value)}
+                    placeholder="aethel-music"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block text-xs font-medium text-neutral-300">Token do Bot Discord</label>
+                    <button
+                      type="button"
+                      onClick={() => setShowMusicToken(!showMusicToken)}
+                      className="text-[10px] text-cyan-400 hover:underline"
+                    >
+                      {showMusicToken ? 'Ocultar' : 'Exibir'}
+                    </button>
+                  </div>
+                  <input
+                    type={showMusicToken ? 'text' : 'password'}
+                    value={genMusicToken}
+                    onChange={(e) => setGenMusicToken(e.target.value)}
+                    placeholder="Cole seu token de bot do Discord (ex: MTUyNT...)"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">Servidor Lavalink v4</label>
+                  <input
+                    type="text"
+                    value={genLavalinkHost}
+                    onChange={(e) => setGenLavalinkHost(e.target.value)}
+                    placeholder="lavalink.serenetia.com"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-medium text-neutral-300 mb-1">Senha do Lavalink</label>
+                  <input
+                    type="text"
+                    value={genLavalinkPass}
+                    onChange={(e) => setGenLavalinkPass(e.target.value)}
+                    placeholder="youshallnotpass"
+                    className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-white/5">
+                <span className="text-xs text-neutral-400 font-mono">
+                  Gera discloud.config + bot.js + package.json + .env pronto para upload
+                </span>
+
+                <button
+                  onClick={handleGenerateMusicBotZip}
+                  disabled={isGeneratingZip}
+                  className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white flex items-center bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 border-none shadow-lg"
+                >
+                  <Music className="w-3.5 h-3.5 mr-2" />
+                  <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar Bot de Música Pronto (.ZIP)'}</span>
+                </button>
+              </div>
+            </div>
+          )}
         </section>
       )}
 

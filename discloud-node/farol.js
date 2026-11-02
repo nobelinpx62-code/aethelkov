@@ -27,6 +27,7 @@ const activeSockets = new Map();
 const activeTimers = new Map();
 // Rastreia em qual canal de voz o último usuário esteve no servidor: guildId -> channelId
 const latestUserVoiceChannel = new Map();
+const userVoiceStates = new Map();
 
 async function logTelemetry(botId, level, message) {
   const formatted = `[${NODE_ID}] ${message}`;
@@ -83,13 +84,24 @@ async function initMesh() {
       console.log(`[${NODE_ID}] Recebido comando KILL_BOT para: ${botId}`);
       disconnectGateway(botId);
     })
-    .on('broadcast', { event: 'CONNECT_VOICE' }, (p) => {
-      const { botId, guildId, channelId } = p.payload;
+    .on('broadcast', { event: 'CONNECT_VOICE' }, async (p) => {
+      const { botId, guildId, channelId, userId } = p.payload;
       console.log(`[${NODE_ID}] Recebido comando CONNECT_VOICE para guild: ${guildId}`);
       const session = activeSockets.get(botId);
       if (session && session.ws.readyState === WebSocket.OPEN) {
-        const target = channelId || latestUserVoiceChannel.get(guildId) || null;
+        let target = channelId || (userId && userVoiceStates.get(`${guildId}_${userId}`)) || latestUserVoiceChannel.get(guildId) || null;
+        if (!target && session.token) {
+          try {
+            const res = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+              headers: { Authorization: `Bot ${session.token}` },
+            });
+            const channels = await res.json();
+            const vc = Array.isArray(channels) && channels.find((c) => c.type === 2);
+            if (vc) target = vc.id;
+          } catch (_) {}
+        }
         if (target) {
+          latestUserVoiceChannel.set(guildId, target);
           session.ws.send(
             JSON.stringify({
               op: 4,
@@ -185,10 +197,23 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
         ws.send(JSON.stringify({ op: 1, d: lastSeq }));
       }
 
-      // Rastreia o canal de voz onde os usuários entram
+      // Rastreia onde os membros estão conectados em canais de voz
+      if (t === 'GUILD_CREATE' && d && Array.isArray(d.voice_states)) {
+        d.voice_states.forEach((vs) => {
+          if (vs.user_id && vs.channel_id) {
+            userVoiceStates.set(`${d.id}_${vs.user_id}`, vs.channel_id);
+            latestUserVoiceChannel.set(d.id, vs.channel_id);
+          }
+        });
+      }
+
+      // Rastreia o canal de voz onde os usuários entram ou saem
       if (t === 'VOICE_STATE_UPDATE' && d) {
         if (d.guild_id && d.channel_id) {
           latestUserVoiceChannel.set(d.guild_id, d.channel_id);
+          userVoiceStates.set(`${d.guild_id}_${d.user_id}`, d.channel_id);
+        } else if (d.guild_id && d.user_id) {
+          userVoiceStates.delete(`${d.guild_id}_${d.user_id}`);
         }
 
         // Repassa eventos de voz para que a Vercel e o Lavalink coordenem o áudio
@@ -274,7 +299,7 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
     } catch (_) {}
   });
 
-  activeSockets.set(botId, { ws, heartbeat, botName });
+  activeSockets.set(botId, { ws, heartbeat, botName, token });
 }
 
 function scheduleCron(botId, intervalSec, token) {

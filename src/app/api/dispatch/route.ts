@@ -150,11 +150,12 @@ export async function POST(req: NextRequest) {
 
               // Solicita ao nó Farol conectar ao canal de voz
               if (guildId) {
+                const callerUserId = data.member?.user?.id || data.user?.id;
                 const channel = supabase.channel('mesh_control_farol-alpha');
                 await channel.send({
                   type: 'broadcast',
                   event: 'CONNECT_VOICE',
-                  payload: { botId, guildId },
+                  payload: { botId, guildId, userId: callerUserId },
                 });
               }
             } else {
@@ -247,11 +248,12 @@ export async function POST(req: NextRequest) {
 
             // Emite instrução para o nó Farol conectar ao canal de voz no servidor
             if (guildId) {
+              const callerUserId = data.author?.id;
               const channel = supabase.channel('mesh_control_farol-alpha');
               await channel.send({
                 type: 'broadcast',
                 event: 'CONNECT_VOICE',
-                payload: { botId, guildId, query, track },
+                payload: { botId, guildId, userId: callerUserId, query, track },
               });
             }
           } else {

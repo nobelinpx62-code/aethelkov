@@ -52,7 +52,7 @@ async function initMesh() {
 
   const { data: bots, error } = await supabase
     .from('aethel_bots')
-    .select('id, bot_name, token_encrypted, cron_interval_sec')
+    .select('id, bot_name, token_encrypted')
     .eq('platform', 'DISCORD')
     .eq('status', 'ONLINE')
     .range(SHARD_OFFSET, SHARD_OFFSET + SHARD_LIMIT - 1);
@@ -63,7 +63,7 @@ async function initMesh() {
     console.log(`[Aethel-Farol] Conectando ${bots.length} instâncias alocadas...`);
     bots.forEach((bot) => {
       connectGateway(bot.id, bot.token_encrypted, bot.bot_name);
-      scheduleCron(bot.id, bot.cron_interval_sec, bot.token_encrypted);
+      scheduleCron(bot.id, 0, bot.token_encrypted);
     });
   } else {
     console.log('[Aethel-Farol] Nenhuma instância aguardando conexão no momento.');

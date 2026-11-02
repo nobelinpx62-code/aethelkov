@@ -18,12 +18,16 @@ const NODE_ID = process.env.AETHEL_NODE_ID || 'farol-alpha';
 const SHARD_OFFSET = parseInt(process.env.AETHEL_SHARD_OFFSET || '0', 10);
 const SHARD_LIMIT = parseInt(process.env.AETHEL_SHARD_LIMIT || '50', 10);
 
-const LAVALINK_HOST = process.env.LAVALINK_HOST || 'lavalink.serenetia.com';
-const LAVALINK_PORT = process.env.LAVALINK_PORT || 443;
-const LAVALINK_PASS = process.env.LAVALINK_PASSWORD || 'youshallnotpass';
-const LAVALINK_SECURE = process.env.LAVALINK_SECURE !== 'false';
-const LAVALINK_WS = `${LAVALINK_SECURE ? 'wss' : 'ws'}://${LAVALINK_HOST}:${LAVALINK_PORT}/v4/websocket`;
-const LAVALINK_HTTP = `${LAVALINK_SECURE ? 'https' : 'http'}://${LAVALINK_HOST}:${LAVALINK_PORT}`;
+const LAVALINK_NODES = [
+  { host: 'lavalink.jirayu.net', port: 443, pass: 'youshallnotpass', secure: true },
+  { host: 'lava-v4.millohost.my.id', port: 443, pass: 'https://discord.gg/mjS5J2K3ep', secure: true },
+  { host: 'lavalink-v4.triniumhost.com', port: 443, pass: 'free', secure: true },
+];
+let activeNodeIdx = 0;
+
+function getActiveLavalinkNode() {
+  return LAVALINK_NODES[activeNodeIdx] || LAVALINK_NODES[0];
+}
 
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('[FATAL] Variáveis do Supabase ausentes no Farol.');
@@ -37,7 +41,7 @@ const activeTimers = new Map();
 // Rastreamento de chamadas e membros em canais de voz
 const latestUserVoiceChannel = new Map();
 const userVoiceStates = new Map();
-const voiceStates = new Map(); // guildId -> { token, endpoint, sessionId }
+const voiceStates = new Map(); // guildId -> { token, endpoint, sessionId, channelId }
 const pendingTracks = new Map(); // guildId -> track
 
 // Lavalink v4 Client
@@ -45,17 +49,25 @@ let lavalinkWs = null;
 let lavalinkSessionId = null;
 
 function connectLavalink(botUserId = '1525726396117287073') {
+  if (lavalinkWs && (lavalinkWs.readyState === WebSocket.OPEN || lavalinkWs.readyState === WebSocket.CONNECTING)) {
+    return;
+  }
+
+  const node = getActiveLavalinkNode();
+  const wsUrl = `${node.secure ? 'wss' : 'ws'}://${node.host}:${node.port}/v4/websocket`;
+
   try {
-    lavalinkWs = new WebSocket(LAVALINK_WS, {
+    lavalinkWs = new WebSocket(wsUrl, {
       headers: {
-        Authorization: LAVALINK_PASS,
+        Authorization: node.pass,
         'User-Id': botUserId,
         'Client-Name': `Aethelkov-Farol/${NODE_ID}`,
       },
     });
 
     lavalinkWs.on('open', () => {
-      console.log(`[${NODE_ID}] Conectado ao cluster de áudio Lavalink v4 (${LAVALINK_HOST})`);
+      console.log(`[${NODE_ID}] Conectado ao cluster de áudio Lavalink v4 (${node.host})`);
+      logTelemetry(null, 'GATEWAY', `[Lavalink] Conectado ao nó: ${node.host}`);
     });
 
     lavalinkWs.on('message', (raw) => {
@@ -64,19 +76,41 @@ function connectLavalink(botUserId = '1525726396117287073') {
         if (msg.op === 'ready') {
           lavalinkSessionId = msg.sessionId;
           console.log(`[${NODE_ID}] Sessão Lavalink estabelecida! Session ID: ${lavalinkSessionId}`);
+          logTelemetry(null, 'INFO', `[Lavalink] Sessão ativa estabelecida (${msg.sessionId}) no nó ${node.host}`);
+
+          // Se houver guilds com dados de voz já salvos, sincroniza áudio imediatamente
+          for (const guildId of voiceStates.keys()) {
+            syncLavalinkPlayer(guildId);
+          }
         }
       } catch (_) {}
     });
 
-    lavalinkWs.on('close', () => setTimeout(() => connectLavalink(botUserId), 5000));
-    lavalinkWs.on('error', () => {});
-  } catch (_) {}
+    lavalinkWs.on('close', (code, reason) => {
+      console.warn(`[${NODE_ID}] Lavalink desconectado (${code} - ${reason}). Tentando próximo nó...`);
+      lavalinkWs = null;
+      lavalinkSessionId = null;
+      activeNodeIdx = (activeNodeIdx + 1) % LAVALINK_NODES.length;
+      setTimeout(() => connectLavalink(botUserId), 3000);
+    });
+
+    lavalinkWs.on('error', (err) => {
+      console.error(`[${NODE_ID}] Erro Lavalink (${node.host}):`, err.message);
+    });
+  } catch (err) {
+    console.error(`[${NODE_ID}] Falha ao conectar Lavalink:`, err.message);
+  }
 }
 
 async function syncLavalinkPlayer(guildId) {
   const vs = voiceStates.get(guildId);
   const track = pendingTracks.get(guildId);
-  if (!vs || !vs.token || !vs.endpoint || !vs.sessionId || !lavalinkSessionId) return;
+  if (!vs || !vs.token || !vs.endpoint || !vs.sessionId || !vs.channelId || !lavalinkSessionId) {
+    return;
+  }
+
+  const node = getActiveLavalinkNode();
+  const httpUrl = `${node.secure ? 'https' : 'http'}://${node.host}:${node.port}`;
 
   try {
     const payload = {
@@ -84,22 +118,27 @@ async function syncLavalinkPlayer(guildId) {
         token: vs.token,
         endpoint: vs.endpoint,
         sessionId: vs.sessionId,
+        channelId: vs.channelId,
       },
+      volume: 100,
+      paused: false,
     };
     if (track && track.encoded) {
       payload.track = { encoded: track.encoded };
       pendingTracks.delete(guildId);
     }
 
-    const res = await fetch(`${LAVALINK_HTTP}/v4/sessions/${lavalinkSessionId}/players/${guildId}`, {
+    const res = await fetch(`${httpUrl}/v4/sessions/${lavalinkSessionId}/players/${guildId}?noReplace=false`, {
       method: 'PATCH',
       headers: {
-        Authorization: LAVALINK_PASS,
+        Authorization: node.pass,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(payload),
     });
-    console.log(`[${NODE_ID}] Lavalink Player sincronizado com sucesso para guild ${guildId} (HTTP ${res.status})`);
+    const resText = await res.text();
+    console.log(`[${NODE_ID}] Lavalink Player sincronizado para guild ${guildId} (HTTP ${res.status}): ${resText.slice(0, 100)}`);
+    logTelemetry(null, res.ok ? 'GATEWAY' : 'WARNING', `[Lavalink-Player] Sincronização guild ${guildId} -> HTTP ${res.status}`);
   } catch (err) {
     console.error(`[${NODE_ID}] Erro ao sincronizar Lavalink:`, err.message);
   }
@@ -183,6 +222,10 @@ async function initMesh() {
         }
         if (target) {
           latestUserVoiceChannel.set(guildId, target);
+          const vs = voiceStates.get(guildId) || {};
+          vs.channelId = target;
+          voiceStates.set(guildId, vs);
+
           session.ws.send(
             JSON.stringify({
               op: 4,
@@ -190,11 +233,15 @@ async function initMesh() {
                 guild_id: guildId,
                 channel_id: target,
                 self_mute: false,
-                self_deaf: true,
+                self_deaf: false,
               },
             })
           );
           logTelemetry(botId, 'GATEWAY', `[Voice-Connect] Conectando ao canal de voz: ${target}`);
+
+          if (vs.token && vs.endpoint && vs.sessionId && vs.channelId) {
+            syncLavalinkPlayer(guildId);
+          }
         }
       }
     })
@@ -314,6 +361,7 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
         if (curSession && curSession.botUserId && d.user_id === curSession.botUserId && d.guild_id) {
           const vs = voiceStates.get(d.guild_id) || {};
           vs.sessionId = d.session_id;
+          if (d.channel_id) vs.channelId = d.channel_id;
           voiceStates.set(d.guild_id, vs);
           syncLavalinkPlayer(d.guild_id);
         }

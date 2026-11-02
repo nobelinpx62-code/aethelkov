@@ -5,13 +5,35 @@ export const dynamic = 'force-dynamic';
 
 const INTERNAL_SECRET = process.env.AETHEL_INTERNAL_SECRET || 'aethel-secret-grid-master-key';
 
-// Nós Lavalink padrão para fallback imediato
-const DEFAULT_LAVALINK_NODE = {
-  host: 'lavalink.serenetia.com',
-  port: 443,
-  password: 'youshallnotpass',
-  secure: true,
-};
+// Cluster de nós Lavalink v4 com failover automático
+const LAVALINK_NODES = [
+  { host: 'lavalink.jirayu.net', port: 443, password: 'youshallnotpass', secure: true },
+  { host: 'lava-v4.millohost.my.id', port: 443, password: 'https://discord.gg/mjS5J2K3ep', secure: true },
+  { host: 'lavalink-v4.triniumhost.com', port: 443, password: 'free', secure: true },
+];
+
+async function searchLavalinkTrack(query: string) {
+  for (const node of LAVALINK_NODES) {
+    try {
+      const url = `${node.secure ? 'https' : 'http'}://${node.host}:${node.port}/v4/loadtracks?identifier=ytsearch:${encodeURIComponent(query)}`;
+      const res = await fetch(url, {
+        headers: { Authorization: node.password },
+        signal: AbortSignal.timeout(4500),
+      });
+      if (res.ok) {
+        const json = await res.json();
+        const list = Array.isArray(json.data) ? json.data : (json.data ? [json.data] : []);
+        const track = list[0];
+        if (track && track.encoded) {
+          return { track, node };
+        }
+      }
+    } catch (_) {}
+  }
+  return null;
+}
+
+const DEFAULT_LAVALINK_NODE = LAVALINK_NODES[0];
 
 function formatDuration(ms: number): string {
   if (!ms || isNaN(ms)) return '0:00';
@@ -126,11 +148,8 @@ export async function POST(req: NextRequest) {
         if (commandName === 'music') {
           const query = data.data?.options?.[0]?.value || 'Never Gonna Give You Up';
           try {
-            const searchRes = await fetch(`https://${DEFAULT_LAVALINK_NODE.host}/v4/loadtracks?identifier=ytsearch:${encodeURIComponent(query)}`, {
-              headers: { Authorization: DEFAULT_LAVALINK_NODE.password },
-            });
-            const searchData = await searchRes.json();
-            const track = searchData.data?.[0];
+            const found = await searchLavalinkTrack(query);
+            const track = found?.track;
 
             if (track) {
               const duration = formatDuration(track.info?.length);
@@ -219,15 +238,9 @@ export async function POST(req: NextRequest) {
         const query = rawContent.replace(/^!(?:music|play|tocar|musica)\s*/i, '').trim() || 'misery';
 
         try {
-          // Busca a música no cluster Lavalink v4
-          const searchRes = await fetch(
-            `https://${DEFAULT_LAVALINK_NODE.host}/v4/loadtracks?identifier=ytsearch:${encodeURIComponent(query)}`,
-            {
-              headers: { Authorization: DEFAULT_LAVALINK_NODE.password },
-            }
-          );
-          const searchData = await searchRes.json();
-          const track = searchData.data?.[0];
+          // Busca a música no cluster Lavalink v4 com failover
+          const found = await searchLavalinkTrack(query);
+          const track = found?.track;
 
           if (track) {
             const duration = formatDuration(track.info?.length);

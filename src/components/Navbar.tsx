@@ -14,7 +14,8 @@ import {
   X, 
   Globe, 
   ArrowRight,
-  ExternalLink
+  ExternalLink,
+  Settings
 } from 'lucide-react';
 
 interface NavbarProps {
@@ -22,8 +23,8 @@ interface NavbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onTriggerAdmin: () => void;
-  activeNavTab: 'overview' | 'instances';
-  onSelectNavTab: (tab: 'overview' | 'instances') => void;
+  activeNavTab: 'overview' | 'instances' | 'settings';
+  onSelectNavTab: (tab: 'overview' | 'instances' | 'settings') => void;
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
@@ -116,6 +117,16 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 Instâncias
+              </button>
+              <button
+                onClick={() => onSelectNavTab('settings')}
+                className={`rounded-full px-4 py-1.5 font-medium transition-all ${
+                  activeNavTab === 'settings'
+                    ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                Configurações
               </button>
             </div>
 
@@ -273,6 +284,17 @@ export const Navbar: React.FC<NavbarProps> = ({
 
             <button
               type="button"
+              onClick={() => onSelectNavTab('settings')}
+              className={`flex flex-col items-center gap-0.5 py-1 px-3 rounded-full transition-all ${
+                activeNavTab === 'settings' ? 'text-cyan-300 font-bold scale-105' : 'text-neutral-400'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span className="text-[10px] font-mono">Config</span>
+            </button>
+
+            <button
+              type="button"
               onClick={onOpenDeploy}
               className="flex items-center justify-center h-10 w-10 -my-2 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-[0_0_16px_rgba(16,185,129,0.6)] active:scale-95 transition-all"
               title="Novo Deploy"
@@ -373,6 +395,25 @@ export const Navbar: React.FC<NavbarProps> = ({
                   <div className="flex items-center gap-3">
                     <Bot className="w-4 h-4 text-cyan-400" />
                     <span>Instâncias de Bots</span>
+                  </div>
+                  <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectNavTab('settings');
+                    setIsDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
+                    activeNavTab === 'settings'
+                      ? 'bg-white/15 text-white font-semibold border border-white/20 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Settings className="w-4 h-4 text-purple-400" />
+                    <span>Configurações & API</span>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
                 </button>

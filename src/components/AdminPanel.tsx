@@ -87,7 +87,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Formulário de Presente
   const [giftRecipient, setGiftRecipient] = useState('');
-  const [giftRamMb, setGiftRamMb] = useState(50);
+  const [giftRamMb, setGiftRamMb] = useState(100);
   const [giftIsTemp, setGiftIsTemp] = useState(false);
   const [giftDurationDays, setGiftDurationDays] = useState(30);
   const [giftReason, setGiftReason] = useState('');
@@ -95,7 +95,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   // Formulário de Código Promocional
   const [promoCodeInput, setPromoCodeInput] = useState('');
-  const [promoRamMb, setPromoRamMb] = useState(25);
+  const [promoRamMb, setPromoRamMb] = useState(100);
   const [promoIsTemp, setPromoIsTemp] = useState(true);
   const [promoDurationDays, setPromoDurationDays] = useState(30);
   const [promoMaxUses, setPromoMaxUses] = useState(50);
@@ -116,7 +116,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       setIsCreatingPromo(true);
       const created = createPromoCode({
         code: promoCodeInput,
-        ram_mb: Number(promoRamMb) || 25,
+        ram_mb: Math.max(Number(promoRamMb) || 100, 100),
         is_temporary: promoIsTemp,
         duration_days: promoIsTemp ? Number(promoDurationDays) || 30 : undefined,
         max_uses: Number(promoMaxUses) || 50,
@@ -151,7 +151,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     try {
       const created = sendUserGift({
         recipient: giftRecipient,
-        ram_mb: Number(giftRamMb) || 50,
+        ram_mb: Math.max(Number(giftRamMb) || 100, 100),
         is_temporary: giftIsTemp,
         duration_days: giftIsTemp ? Number(giftDurationDays) || 30 : undefined,
         reason: giftReason,
@@ -1122,14 +1122,14 @@ setInterval(reportNodeHeartbeat, 15000);
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-neutral-300 text-xs mb-1">
-                      Quantidade de RAM (+MB)
+                      Quantidade de RAM (+MB) &bull; <span className="text-cyan-400">Mínimo 100 MB</span>
                     </label>
                     <input
                       type="number"
                       required
-                      min={5}
-                      max={1000}
-                      step={5}
+                      min={100}
+                      max={2000}
+                      step={100}
                       value={giftRamMb}
                       onChange={(e) => setGiftRamMb(Number(e.target.value))}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-emerald-400"
@@ -1244,14 +1244,14 @@ setInterval(reportNodeHeartbeat, 15000);
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-neutral-300 text-xs mb-1">
-                      Bônus de RAM (+MB)
+                      Bônus de RAM (+MB) &bull; <span className="text-pink-400">Mínimo 100 MB</span>
                     </label>
                     <input
                       type="number"
                       required
-                      min={5}
-                      max={500}
-                      step={5}
+                      min={100}
+                      max={2000}
+                      step={100}
                       value={promoRamMb}
                       onChange={(e) => setPromoRamMb(Number(e.target.value))}
                       className="w-full px-3.5 py-2.5 rounded-xl bg-black/50 border border-white/10 text-white text-xs focus:outline-none focus:border-pink-400"

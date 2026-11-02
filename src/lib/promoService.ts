@@ -44,7 +44,7 @@ export function getPromoCodes(): PromoCode[] {
         {
           id: 'promo-welcome',
           code: 'AETHEL2026',
-          ram_mb: 25,
+          ram_mb: 100,
           is_temporary: true,
           duration_days: 30,
           max_uses: 100,
@@ -78,6 +78,10 @@ export function createPromoCode(params: {
   const codes = getPromoCodes();
   const normalized = params.code.trim().toUpperCase();
 
+  if (Number(params.ram_mb) < 100) {
+    throw new Error('O valor do bônus deve ser de no mínimo 100 MB (100 MB = 1 aplicação adicional). Valores menores não são permitidos.');
+  }
+
   const existing = codes.find((c) => c.code === normalized);
   if (existing) {
     throw new Error(`O código "${normalized}" já existe! Crie um código diferente.`);
@@ -86,7 +90,7 @@ export function createPromoCode(params: {
   const newCode: PromoCode = {
     id: 'promo-' + Date.now(),
     code: normalized,
-    ram_mb: params.ram_mb,
+    ram_mb: Math.max(Number(params.ram_mb) || 100, 100),
     is_temporary: params.is_temporary,
     duration_days: params.is_temporary ? params.duration_days || 7 : undefined,
     max_uses: params.max_uses || 1,
@@ -131,10 +135,12 @@ export function sendUserGift(params: {
   reason: string;
 }): UserGift {
   const gifts = getUserGifts();
+  const safeRam = Math.max(Number(params.ram_mb) || 100, 100);
+
   const newGift: UserGift = {
     id: 'gift-' + Date.now(),
     recipient: params.recipient.trim(),
-    ram_mb: params.ram_mb,
+    ram_mb: safeRam,
     is_temporary: params.is_temporary,
     duration_days: params.is_temporary ? params.duration_days || 30 : undefined,
     reason: params.reason.trim() || 'Presente exclusivo da moderação Aethel Kov',
@@ -221,14 +227,26 @@ export function redeemCodeForUser(code: string, userKey: string): { success: boo
   };
 }
 
-// Obter bônus de RAM acumulado do usuário
+// Obter bônus de RAM acumulado do usuário (garante remoção do bônus residual de 25 MB)
 export function getUserBonusData(userKey: string): UserQuotaBonus {
   if (typeof window === 'undefined' || !userKey) {
     return { extra_ram_mb: 0, active_gifts: [], redeemed_codes: [] };
   }
   try {
     const raw = localStorage.getItem(STORAGE_KEY_USER_BONUS + userKey);
-    return raw ? JSON.parse(raw) : { extra_ram_mb: 0, active_gifts: [], redeemed_codes: [] };
+    if (!raw) return { extra_ram_mb: 0, active_gifts: [], redeemed_codes: [] };
+    const parsed: UserQuotaBonus = JSON.parse(raw);
+
+    // Remove imediatamente os 25 MB residuais da conta admin
+    if (parsed.extra_ram_mb === 25) {
+      parsed.extra_ram_mb = 0;
+      saveUserBonusData(userKey, parsed);
+    } else if (parsed.extra_ram_mb > 0 && parsed.extra_ram_mb % 100 !== 0) {
+      parsed.extra_ram_mb = Math.floor(parsed.extra_ram_mb / 100) * 100;
+      saveUserBonusData(userKey, parsed);
+    }
+
+    return parsed;
   } catch {
     return { extra_ram_mb: 0, active_gifts: [], redeemed_codes: [] };
   }

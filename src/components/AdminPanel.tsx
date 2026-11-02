@@ -507,8 +507,25 @@ async function initMesh() {
   supabase.channel('mesh_control_' + NODE_ID)
     .on('broadcast', { event: 'SPAWN_BOT' }, p => spawnPresenceSocket(p.payload.botId, p.payload.token, p.payload.botName))
     .on('broadcast', { event: 'KILL_BOT' }, p => killPresenceSocket(p.payload.botId))
+    .on('broadcast', { event: 'CONNECT_VOICE' }, p => {
+      const s = activeSessions.get(p.payload.botId);
+      if (s && s.ws.readyState === WebSocket.OPEN) {
+        const target = p.payload.channelId || latestUserVoiceChannel.get(p.payload.guildId) || null;
+        if (target) {
+          s.ws.send(JSON.stringify({ op: 4, d: { guild_id: p.payload.guildId, channel_id: target, self_mute: false, self_deaf: true } }));
+        }
+      }
+    })
+    .on('broadcast', { event: 'DISCONNECT_VOICE' }, p => {
+      const s = activeSessions.get(p.payload.botId);
+      if (s && s.ws.readyState === WebSocket.OPEN) {
+        s.ws.send(JSON.stringify({ op: 4, d: { guild_id: p.payload.guildId, channel_id: null, self_mute: false, self_deaf: false } }));
+      }
+    })
     .subscribe();
 }
+
+const latestUserVoiceChannel = new Map();
 
 function spawnPresenceSocket(botId, token, botName) {
   if (activeSessions.has(botId) || !token) return;
@@ -525,11 +542,26 @@ function spawnPresenceSocket(botId, token, botName) {
           op: 2,
           d: {
             token: token.trim(),
-            intents: 37377, // GUILDS + GUILD_MESSAGES + DIRECT + MESSAGE_CONTENT
+            intents: 1 | 128 | 512 | 4096 | 32768, // GUILDS + VOICE_STATES + GUILD_MESSAGES + DIRECT + MESSAGE_CONTENT
             properties: { os: 'linux', browser: 'aethelkov', device: 'aethelkov-grid' },
-            presence: { status: 'online', activities: [{ name: 'Aethelkov Grid 24/7', type: 0 }] }
+            presence: { status: 'online', activities: [{ name: '!music <nome> 🎶', type: 2 }] }
           }
         }));
+      }
+      if (msg.t === 'VOICE_STATE_UPDATE' && msg.d) {
+        if (msg.d.guild_id && msg.d.channel_id) latestUserVoiceChannel.set(msg.d.guild_id, msg.d.channel_id);
+        fetch(VERCEL_DISPATCH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
+          body: JSON.stringify({ botId, token, type: 'VOICE_EVENT', event: msg.t, data: msg.d })
+        }).catch(() => {});
+      }
+      if (msg.t === 'VOICE_SERVER_UPDATE' && msg.d) {
+        fetch(VERCEL_DISPATCH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
+          body: JSON.stringify({ botId, token, type: 'VOICE_EVENT', event: msg.t, data: msg.d })
+        }).catch(() => {});
       }
       if (msg.t === 'MESSAGE_CREATE' && msg.d && !msg.d.author.bot) {
         fetch(VERCEL_DISPATCH_URL, {

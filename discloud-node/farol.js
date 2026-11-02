@@ -1,7 +1,8 @@
 /**
  * AETHELKOV CORE v3.0 - AETHEL-FAROL DAEMON (UNIVERSAL MESH & AUDIO RELAY)
  * Runtime de presença ultraleve para execução na Discloud (TYPE=bot)
- * Consumo médio por bot: ~0.8 MB RAM | Zero FFmpeg | Zero Buffering Local
+ * Suporte a Voz Gateway (Opcode 4), GUILD_VOICE_STATES e Áudio Lavalink v4 Integrado
+ * Consumo médio: ~20 MB RAM | Zero FFmpeg Local
  */
 
 require('dotenv').config();
@@ -17,6 +18,13 @@ const NODE_ID = process.env.AETHEL_NODE_ID || 'farol-alpha';
 const SHARD_OFFSET = parseInt(process.env.AETHEL_SHARD_OFFSET || '0', 10);
 const SHARD_LIMIT = parseInt(process.env.AETHEL_SHARD_LIMIT || '50', 10);
 
+const LAVALINK_HOST = process.env.LAVALINK_HOST || 'lavalink.serenetia.com';
+const LAVALINK_PORT = process.env.LAVALINK_PORT || 443;
+const LAVALINK_PASS = process.env.LAVALINK_PASSWORD || 'youshallnotpass';
+const LAVALINK_SECURE = process.env.LAVALINK_SECURE !== 'false';
+const LAVALINK_WS = `${LAVALINK_SECURE ? 'wss' : 'ws'}://${LAVALINK_HOST}:${LAVALINK_PORT}/v4/websocket`;
+const LAVALINK_HTTP = `${LAVALINK_SECURE ? 'https' : 'http'}://${LAVALINK_HOST}:${LAVALINK_PORT}`;
+
 if (!SUPABASE_URL || !SUPABASE_KEY) {
   console.error('[FATAL] Variáveis do Supabase ausentes no Farol.');
   process.exit(1);
@@ -25,9 +33,77 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
 const activeSockets = new Map();
 const activeTimers = new Map();
-// Rastreia em qual canal de voz o último usuário esteve no servidor: guildId -> channelId
+
+// Rastreamento de chamadas e membros em canais de voz
 const latestUserVoiceChannel = new Map();
 const userVoiceStates = new Map();
+const voiceStates = new Map(); // guildId -> { token, endpoint, sessionId }
+const pendingTracks = new Map(); // guildId -> track
+
+// Lavalink v4 Client
+let lavalinkWs = null;
+let lavalinkSessionId = null;
+
+function connectLavalink(botUserId = '1525726396117287073') {
+  try {
+    lavalinkWs = new WebSocket(LAVALINK_WS, {
+      headers: {
+        Authorization: LAVALINK_PASS,
+        'User-Id': botUserId,
+        'Client-Name': `Aethelkov-Farol/${NODE_ID}`,
+      },
+    });
+
+    lavalinkWs.on('open', () => {
+      console.log(`[${NODE_ID}] Conectado ao cluster de áudio Lavalink v4 (${LAVALINK_HOST})`);
+    });
+
+    lavalinkWs.on('message', (raw) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.op === 'ready') {
+          lavalinkSessionId = msg.sessionId;
+          console.log(`[${NODE_ID}] Sessão Lavalink estabelecida! Session ID: ${lavalinkSessionId}`);
+        }
+      } catch (_) {}
+    });
+
+    lavalinkWs.on('close', () => setTimeout(() => connectLavalink(botUserId), 5000));
+    lavalinkWs.on('error', () => {});
+  } catch (_) {}
+}
+
+async function syncLavalinkPlayer(guildId) {
+  const vs = voiceStates.get(guildId);
+  const track = pendingTracks.get(guildId);
+  if (!vs || !vs.token || !vs.endpoint || !vs.sessionId || !lavalinkSessionId) return;
+
+  try {
+    const payload = {
+      voice: {
+        token: vs.token,
+        endpoint: vs.endpoint,
+        sessionId: vs.sessionId,
+      },
+    };
+    if (track && track.encoded) {
+      payload.track = { encoded: track.encoded };
+      pendingTracks.delete(guildId);
+    }
+
+    const res = await fetch(`${LAVALINK_HTTP}/v4/sessions/${lavalinkSessionId}/players/${guildId}`, {
+      method: 'PATCH',
+      headers: {
+        Authorization: LAVALINK_PASS,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    console.log(`[${NODE_ID}] Lavalink Player sincronizado com sucesso para guild ${guildId} (HTTP ${res.status})`);
+  } catch (err) {
+    console.error(`[${NODE_ID}] Erro ao sincronizar Lavalink:`, err.message);
+  }
+}
 
 async function logTelemetry(botId, level, message) {
   const formatted = `[${NODE_ID}] ${message}`;
@@ -49,6 +125,9 @@ async function initMesh() {
   console.log(`⚡ [Aethel-Farol v3.0] Shard Range: ${SHARD_OFFSET} a ${SHARD_OFFSET + SHARD_LIMIT - 1}`);
   console.log(`⚡ [Aethel-Farol v3.0] Dispatcher: ${VERCEL_DISPATCH_URL}`);
   console.log('========================================================');
+
+  // Inicializa conexão Lavalink v4
+  connectLavalink();
 
   const { data: bots, error } = await supabase
     .from('aethel_bots')
@@ -85,10 +164,12 @@ async function initMesh() {
       disconnectGateway(botId);
     })
     .on('broadcast', { event: 'CONNECT_VOICE' }, async (p) => {
-      const { botId, guildId, channelId, userId } = p.payload;
+      const { botId, guildId, channelId, userId, track } = p.payload;
       console.log(`[${NODE_ID}] Recebido comando CONNECT_VOICE para guild: ${guildId}`);
+      if (track) pendingTracks.set(guildId, track);
+
       const session = activeSockets.get(botId);
-      if (session && session.ws.readyState === WebSocket.OPEN) {
+      if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
         let target = channelId || (userId && userVoiceStates.get(`${guildId}_${userId}`)) || latestUserVoiceChannel.get(guildId) || null;
         if (!target && session.token) {
           try {
@@ -120,8 +201,10 @@ async function initMesh() {
     .on('broadcast', { event: 'DISCONNECT_VOICE' }, (p) => {
       const { botId, guildId } = p.payload;
       console.log(`[${NODE_ID}] Recebido comando DISCONNECT_VOICE para guild: ${guildId}`);
+      pendingTracks.delete(guildId);
+      voiceStates.delete(guildId);
       const session = activeSockets.get(botId);
-      if (session && session.ws.readyState === WebSocket.OPEN) {
+      if (session && session.ws && session.ws.readyState === WebSocket.OPEN) {
         session.ws.send(
           JSON.stringify({
             op: 4,
@@ -155,24 +238,25 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
 
   ws.on('message', (raw) => {
     try {
-      const payload = JSON.parse(raw.toString());
-      const { op, d, s, t } = payload;
+      const { op, d, s, t } = JSON.parse(raw.toString());
 
-      if (s !== null) lastSeq = s;
+      if (s !== null && s !== undefined) {
+        lastSeq = s;
+      }
 
-      // Opcode 10: Hello do Discord com Heartbeat
+      // Opcode 10: Hello -> Iniciar Heartbeat e Identificar
       if (op === 10) {
+        const interval = d.heartbeat_interval;
         heartbeat = setInterval(() => {
           if (ws.readyState === WebSocket.OPEN) {
             ws.send(JSON.stringify({ op: 1, d: lastSeq }));
           }
-        }, d.heartbeat_interval);
+        }, interval);
 
-        // Intents calculadas:
-        // GUILDS (1) + GUILD_VOICE_STATES (128) + GUILD_MESSAGES (512) + DIRECT_MESSAGES (4096)
-        // Se attemptWithoutPrivileged = false, inclui MESSAGE_CONTENT (32768)
-        const baseIntents = 1 | 128 | 512 | 4096;
-        const finalIntents = attemptWithoutPrivileged ? baseIntents : baseIntents | 32768;
+        // Intents completos: GUILDS (1) + GUILD_VOICE_STATES (128) + GUILD_MESSAGES (512) + DIRECT (4096) + MESSAGE_CONTENT (32768)
+        const finalIntents = attemptWithoutPrivileged
+          ? 1 | 128 | 512 | 4096
+          : 1 | 128 | 512 | 4096 | 32768;
 
         ws.send(
           JSON.stringify({
@@ -180,10 +264,19 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
             d: {
               token: token.trim(),
               intents: finalIntents,
-              properties: { os: 'linux', browser: 'aethelkov', device: 'aethel-mesh' },
+              properties: {
+                os: 'linux',
+                browser: 'aethelkov',
+                device: 'aethelkov-grid',
+              },
               presence: {
                 status: 'online',
-                activities: [{ name: '!music <nome> 🎶', type: 2 }],
+                activities: [
+                  {
+                    name: '!music <nome> 🎶',
+                    type: 2,
+                  },
+                ],
               },
             },
           })
@@ -216,6 +309,15 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
           userVoiceStates.delete(`${d.guild_id}_${d.user_id}`);
         }
 
+        // Se for o próprio bot conectado na call, atualiza sessionId de voz e sincroniza Lavalink
+        const curSession = activeSockets.get(botId);
+        if (curSession && curSession.botUserId && d.user_id === curSession.botUserId && d.guild_id) {
+          const vs = voiceStates.get(d.guild_id) || {};
+          vs.sessionId = d.session_id;
+          voiceStates.set(d.guild_id, vs);
+          syncLavalinkPlayer(d.guild_id);
+        }
+
         // Repassa eventos de voz para que a Vercel e o Lavalink coordenem o áudio
         postToVercel({
           botId,
@@ -227,6 +329,12 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
       }
 
       if (t === 'VOICE_SERVER_UPDATE' && d) {
+        const vs = voiceStates.get(d.guild_id) || {};
+        vs.token = d.token;
+        vs.endpoint = d.endpoint;
+        voiceStates.set(d.guild_id, vs);
+        syncLavalinkPlayer(d.guild_id);
+
         postToVercel({
           botId,
           token,
@@ -257,49 +365,55 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
           data: d,
         });
       }
+
+      // READY: Captura ID do próprio bot e conecta no Lavalink
+      if (t === 'READY' && d && d.user) {
+        const curSession = activeSockets.get(botId);
+        if (curSession) curSession.botUserId = d.user.id;
+        connectLavalink(d.user.id);
+      }
     } catch (err) {
-      console.error(`[${NODE_ID}] Erro ao processar mensagem gateway:`, err.message);
+      console.error(`[${NODE_ID}] Erro de parsing WebSocket:`, err);
     }
   });
 
   ws.on('close', (code) => {
-    clearInterval(heartbeat);
+    if (heartbeat) clearInterval(heartbeat);
     activeSockets.delete(botId);
+    logTelemetry(botId, 'WARNING', `Gateway desconectado (Code: ${code}). Tentando reconectar em 5 segundos...`);
 
-    // Se o código for 4014 (Disallowed Intents), faz fallback automático sem privileged intents
+    // Código 4014: Intent não privilegiada bloqueada
     if (code === 4014 && !attemptWithoutPrivileged) {
-      logTelemetry(
-        botId,
-        'WARN',
-        `[Fallback de Intents] O bot não tem "Message Content Intent" ativa no portal do Discord. Reconectando em modo compatível...`
-      );
-      setTimeout(() => connectGateway(botId, token, botName, true), 2000);
+      console.warn(`[${NODE_ID}] Tentando fallback sem Message Content para bot ${botName}...`);
+      setTimeout(() => connectGateway(botId, token, botName, true), 3000);
       return;
     }
 
-    logTelemetry(botId, 'WARN', `Conexão fechada (${code}). Reconectando em 5 segundos...`);
-    setTimeout(() => {
-      supabase
-        .from('aethel_bots')
-        .select('status')
-        .eq('id', botId)
-        .single()
-        .then(({ data }) => {
-          if (data && data.status === 'ONLINE') {
-            connectGateway(botId, token, botName, attemptWithoutPrivileged);
-          }
-        });
-    }, 5000);
+    setTimeout(() => connectGateway(botId, token, botName, attemptWithoutPrivileged), 5000);
   });
 
   ws.on('error', (err) => {
-    logTelemetry(botId, 'ERROR', `Erro de Socket: ${err.message}`);
-    try {
-      ws.close();
-    } catch (_) {}
+    console.error(`[${NODE_ID}] Erro no WebSocket do Gateway:`, err.message);
   });
 
-  activeSockets.set(botId, { ws, heartbeat, botName, token });
+  activeSockets.set(botId, { ws, heartbeat, botName, token, botUserId: '1525726396117287073' });
+}
+
+function disconnectGateway(botId) {
+  const session = activeSockets.get(botId);
+  if (session) {
+    if (session.heartbeat) clearInterval(session.heartbeat);
+    try {
+      session.ws.close(1000, 'Killed by Master Dashboard');
+    } catch (_) {}
+    activeSockets.delete(botId);
+  }
+
+  const cronTimer = activeTimers.get(botId);
+  if (cronTimer) {
+    clearInterval(cronTimer);
+    activeTimers.delete(botId);
+  }
 }
 
 function scheduleCron(botId, intervalSec, token) {
@@ -308,55 +422,44 @@ function scheduleCron(botId, intervalSec, token) {
     activeTimers.delete(botId);
   }
 
-  const safeInterval = Math.max(intervalSec || 0, 10);
+  if (!intervalSec || intervalSec <= 0) return;
 
-  if (intervalSec && intervalSec >= 10) {
-    const timer = setInterval(() => {
-      postToVercel({
-        botId,
-        token,
-        type: 'CRON_TICK',
-        data: { timestamp: Date.now() },
-      });
-    }, safeInterval * 1000);
+  const timer = setInterval(() => {
+    postToVercel({
+      botId,
+      token,
+      type: 'CRON_TICK',
+      data: { timestamp: new Date().toISOString() },
+    });
+  }, intervalSec * 1000);
 
-    activeTimers.set(botId, timer);
-  }
+  activeTimers.set(botId, timer);
 }
 
-function disconnectGateway(botId) {
-  const session = activeSockets.get(botId);
-  if (session) {
-    clearInterval(session.heartbeat);
-    try {
-      session.ws.close(1000, 'Killed by Aethel Mesh');
-    } catch (_) {}
-    activeSockets.delete(botId);
-  }
+async function postToVercel(payload) {
+  try {
+    const res = await fetch(VERCEL_DISPATCH_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'x-aethel-secret': INTERNAL_SECRET,
+      },
+      body: JSON.stringify(payload),
+    });
 
-  if (activeTimers.has(botId)) {
-    clearInterval(activeTimers.get(botId));
-    activeTimers.delete(botId);
+    if (!res.ok) {
+      console.warn(`[${NODE_ID}] Resposta não-OK da Vercel: ${res.status}`);
+    }
+  } catch (err) {
+    console.error(`[${NODE_ID}] Falha de rede ao despachar para Vercel:`, err.message);
   }
-}
-
-function postToVercel(data) {
-  fetch(VERCEL_DISPATCH_URL, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'x-aethel-secret': INTERNAL_SECRET,
-    },
-    body: JSON.stringify(data),
-  }).catch((err) => {
-    console.error(`[${NODE_ID}] Erro ao postar na Vercel:`, err.message);
-  });
 }
 
 async function reportNodeHeartbeat() {
   try {
-    const mem = process.memoryUsage();
-    const rssMb = parseFloat((mem.rss / 1024 / 1024).toFixed(2));
+    const memory = process.memoryUsage();
+    const rssMb = parseFloat((memory.rss / 1024 / 1024).toFixed(2));
+
     const payload = {
       nodeId: NODE_ID,
       status: 'ONLINE',
@@ -367,8 +470,11 @@ async function reportNodeHeartbeat() {
       activeBots: activeSockets.size,
       uptimeSec: Math.floor(process.uptime()),
       version: 'v3.0-universal',
+      hasVoiceSupport: true,
+      hasLavalinkRelay: true,
       timestamp: new Date().toISOString(),
     };
+
     await supabase.from('aethel_logs').insert({
       log_level: 'GATEWAY',
       message: `[NODE_HEARTBEAT] ${JSON.stringify(payload)}`,
@@ -379,11 +485,3 @@ async function reportNodeHeartbeat() {
 initMesh();
 reportNodeHeartbeat();
 setInterval(reportNodeHeartbeat, 15000);
-
-process.on('SIGINT', () => {
-  console.log(`[${NODE_ID}] Encerrando nó...`);
-  for (const [botId] of activeSockets) {
-    disconnectGateway(botId);
-  }
-  process.exit(0);
-});

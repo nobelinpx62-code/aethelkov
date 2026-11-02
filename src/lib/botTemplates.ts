@@ -1,7 +1,7 @@
 /**
  * AETHELKOV BOT TEMPLATES & PACKAGING ENGINE
  * Centraliza os templates de código gerados pelo Painel Admin para Discloud
- * Suporte completo a Voz Gateway (Opcode 4), Lavalink v4 e Presença 24/7
+ * Suporte completo a Voz Gateway (Opcode 4), Lavalink v4 Integrado e Presença 24/7
  */
 
 export interface FarolScriptOptions {
@@ -36,7 +36,7 @@ export function getFarolNodeScript(opts: FarolScriptOptions): string {
 
   return `/**
  * AETHELKOV CORE v3.0 - AETHEL-FAROL DAEMON (Nó: ${cleanName})
- * Suporte completo a Voz Gateway (Opcode 4), GUILD_VOICE_STATES e Lavalink Relay
+ * Suporte completo a Voz Gateway (Opcode 4), GUILD_VOICE_STATES e Áudio Lavalink v4 Integrado
  * Shard Range: ${offset} a ${offset + limit - 1}
  */
 require('dotenv').config();
@@ -52,10 +52,83 @@ const NODE_ID = process.env.AETHEL_NODE_ID || '${cleanName}';
 const SHARD_OFFSET = parseInt(process.env.AETHEL_SHARD_OFFSET || '${offset}', 10);
 const SHARD_LIMIT = parseInt(process.env.AETHEL_SHARD_LIMIT || '${limit}', 10);
 
+const LAVALINK_HOST = process.env.LAVALINK_HOST || 'lavalink.serenetia.com';
+const LAVALINK_PORT = process.env.LAVALINK_PORT || 443;
+const LAVALINK_PASS = process.env.LAVALINK_PASSWORD || 'youshallnotpass';
+const LAVALINK_SECURE = process.env.LAVALINK_SECURE !== 'false';
+const LAVALINK_WS = (LAVALINK_SECURE ? 'wss' : 'ws') + '://' + LAVALINK_HOST + ':' + LAVALINK_PORT + '/v4/websocket';
+const LAVALINK_HTTP = (LAVALINK_SECURE ? 'https' : 'http') + '://' + LAVALINK_HOST + ':' + LAVALINK_PORT;
+
 const supabase = createClient(SUPABASE_URL, SUPABASE_KEY);
-const activeSessions = new Map();
-const userVoiceMap = new Map();
+const activeSockets = new Map();
+const userVoiceStates = new Map();
 const latestUserVoiceChannel = new Map();
+const voiceStates = new Map();
+const pendingTracks = new Map();
+
+let lavalinkWs = null;
+let lavalinkSessionId = null;
+
+function connectLavalink(botUserId = '1525726396117287073') {
+  try {
+    lavalinkWs = new WebSocket(LAVALINK_WS, {
+      headers: {
+        Authorization: LAVALINK_PASS,
+        'User-Id': botUserId,
+        'Client-Name': 'Aethelkov-Farol/' + NODE_ID,
+      },
+    });
+
+    lavalinkWs.on('open', () => {
+      console.log('[' + NODE_ID + '] Conectado ao cluster de áudio Lavalink v4 (' + LAVALINK_HOST + ')');
+    });
+
+    lavalinkWs.on('message', raw => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.op === 'ready') {
+          lavalinkSessionId = msg.sessionId;
+          console.log('[' + NODE_ID + '] Sessão Lavalink estabelecida! Session ID: ' + lavalinkSessionId);
+        }
+      } catch (_) {}
+    });
+
+    lavalinkWs.on('close', () => setTimeout(() => connectLavalink(botUserId), 5000));
+    lavalinkWs.on('error', () => {});
+  } catch (_) {}
+}
+
+async function syncLavalinkPlayer(guildId) {
+  const vs = voiceStates.get(guildId);
+  const track = pendingTracks.get(guildId);
+  if (!vs || !vs.token || !vs.endpoint || !vs.sessionId || !lavalinkSessionId) return;
+
+  try {
+    const payload = {
+      voice: {
+        token: vs.token,
+        endpoint: vs.endpoint,
+        sessionId: vs.sessionId,
+      },
+    };
+    if (track && track.encoded) {
+      payload.track = { encoded: track.encoded };
+      pendingTracks.delete(guildId);
+    }
+
+    const res = await fetch(LAVALINK_HTTP + '/v4/sessions/' + lavalinkSessionId + '/players/' + guildId, {
+      method: 'PATCH',
+      headers: {
+        Authorization: LAVALINK_PASS,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(payload),
+    });
+    console.log('[' + NODE_ID + '] Lavalink Player sincronizado com sucesso para guild ' + guildId + ' (HTTP ' + res.status + ')');
+  } catch (err) {
+    console.error('[' + NODE_ID + '] Erro ao sincronizar Lavalink:', err.message);
+  }
+}
 
 async function reportNodeHeartbeat() {
   try {
@@ -68,9 +141,11 @@ async function reportNodeHeartbeat() {
       ramTotalMb: 100,
       shardOffset: SHARD_OFFSET,
       shardLimit: SHARD_LIMIT,
-      activeBots: activeSessions.size,
+      activeBots: activeSockets.size,
       uptimeSec: Math.floor(process.uptime()),
+      version: 'v3.0-universal',
       hasVoiceSupport: true,
+      hasLavalinkRelay: true,
       timestamp: new Date().toISOString()
     };
     await supabase.from('aethel_logs').insert({
@@ -81,7 +156,9 @@ async function reportNodeHeartbeat() {
 }
 
 async function initMesh() {
-  console.log('[Aethel-Farol v3.0] Nó: ' + NODE_ID + ' (Shards: ' + SHARD_OFFSET + '-' + (SHARD_OFFSET + SHARD_LIMIT - 1) + ') - Voz Gateway Ativa');
+  console.log('[Aethel-Farol v3.0] Nó: ' + NODE_ID + ' (Shards: ' + SHARD_OFFSET + '-' + (SHARD_OFFSET + SHARD_LIMIT - 1) + ') - Voz Gateway & Lavalink');
+  connectLavalink();
+
   const { data: bots } = await supabase
     .from('aethel_bots')
     .select('id, bot_name, token_encrypted')
@@ -97,12 +174,15 @@ async function initMesh() {
     .on('broadcast', { event: 'SPAWN_BOT' }, p => spawnPresenceSocket(p.payload.botId, p.payload.token, p.payload.botName))
     .on('broadcast', { event: 'KILL_BOT' }, p => killPresenceSocket(p.payload.botId))
     .on('broadcast', { event: 'CONNECT_VOICE' }, async p => {
-      const s = activeSessions.get(p.payload.botId);
-      if (s && s.ws.readyState === WebSocket.OPEN) {
-        let target = p.payload.channelId || (p.payload.userId && userVoiceMap.get(p.payload.userId)) || latestUserVoiceChannel.get(p.payload.guildId) || null;
+      const { botId, guildId, channelId, userId, track } = p.payload;
+      if (track) pendingTracks.set(guildId, track);
+
+      const s = activeSockets.get(botId);
+      if (s && s.ws && s.ws.readyState === WebSocket.OPEN) {
+        let target = channelId || (userId && userVoiceStates.get(guildId + '_' + userId)) || latestUserVoiceChannel.get(guildId) || null;
         if (!target && s.token) {
           try {
-            const r = await fetch('https://discord.com/api/v10/guilds/' + p.payload.guildId + '/channels', {
+            const r = await fetch('https://discord.com/api/v10/guilds/' + guildId + '/channels', {
               headers: { Authorization: 'Bot ' + s.token }
             });
             const chs = await r.json();
@@ -111,23 +191,26 @@ async function initMesh() {
           } catch (_) {}
         }
         if (target) {
-          latestUserVoiceChannel.set(p.payload.guildId, target);
-          s.ws.send(JSON.stringify({ op: 4, d: { guild_id: p.payload.guildId, channel_id: target, self_mute: false, self_deaf: true } }));
-          console.log('[Voice] Conectado ao canal de voz ' + target + ' na guild ' + p.payload.guildId);
+          latestUserVoiceChannel.set(guildId, target);
+          s.ws.send(JSON.stringify({ op: 4, d: { guild_id: guildId, channel_id: target, self_mute: false, self_deaf: true } }));
+          console.log('[Voice] Conectado ao canal de voz ' + target + ' na guild ' + guildId);
         }
       }
     })
     .on('broadcast', { event: 'DISCONNECT_VOICE' }, p => {
-      const s = activeSessions.get(p.payload.botId);
-      if (s && s.ws.readyState === WebSocket.OPEN) {
-        s.ws.send(JSON.stringify({ op: 4, d: { guild_id: p.payload.guildId, channel_id: null, self_mute: false, self_deaf: false } }));
+      const { botId, guildId } = p.payload;
+      pendingTracks.delete(guildId);
+      voiceStates.delete(guildId);
+      const s = activeSockets.get(botId);
+      if (s && s.ws && s.ws.readyState === WebSocket.OPEN) {
+        s.ws.send(JSON.stringify({ op: 4, d: { guild_id: guildId, channel_id: null, self_mute: false, self_deaf: false } }));
       }
     })
     .subscribe();
 }
 
 function spawnPresenceSocket(botId, token, botName) {
-  if (activeSessions.has(botId) || !token) return;
+  if (activeSockets.has(botId) || !token) return;
   const ws = new WebSocket('wss://gateway.discord.gg/?v=10&encoding=json');
   let timer = null, seq = null;
 
@@ -141,7 +224,7 @@ function spawnPresenceSocket(botId, token, botName) {
           op: 2,
           d: {
             token: token.trim(),
-            intents: 1 | 128 | 512 | 4096 | 32768, // GUILDS + VOICE_STATES + GUILD_MESSAGES + DIRECT + MESSAGE_CONTENT
+            intents: 1 | 128 | 512 | 4096 | 32768,
             properties: { os: 'linux', browser: 'aethelkov', device: 'aethelkov-grid' },
             presence: { status: 'online', activities: [{ name: '!music <nome> 🎶', type: 2 }] }
           }
@@ -150,7 +233,7 @@ function spawnPresenceSocket(botId, token, botName) {
       if (msg.t === 'GUILD_CREATE' && msg.d && Array.isArray(msg.d.voice_states)) {
         msg.d.voice_states.forEach(vs => {
           if (vs.user_id && vs.channel_id) {
-            userVoiceMap.set(vs.user_id, vs.channel_id);
+            userVoiceStates.set(msg.d.id + '_' + vs.user_id, vs.channel_id);
             latestUserVoiceChannel.set(msg.d.id, vs.channel_id);
           }
         });
@@ -158,10 +241,19 @@ function spawnPresenceSocket(botId, token, botName) {
       if (msg.t === 'VOICE_STATE_UPDATE' && msg.d) {
         if (msg.d.guild_id && msg.d.channel_id) {
           latestUserVoiceChannel.set(msg.d.guild_id, msg.d.channel_id);
-          userVoiceMap.set(msg.d.user_id, msg.d.channel_id);
-        } else if (msg.d.user_id) {
-          userVoiceMap.delete(msg.d.user_id);
+          userVoiceStates.set(msg.d.guild_id + '_' + msg.d.user_id, msg.d.channel_id);
+        } else if (msg.d.guild_id && msg.d.user_id) {
+          userVoiceStates.delete(msg.d.guild_id + '_' + msg.d.user_id);
         }
+
+        const curSession = activeSockets.get(botId);
+        if (curSession && curSession.botUserId && msg.d.user_id === curSession.botUserId && msg.d.guild_id) {
+          const vs = voiceStates.get(msg.d.guild_id) || {};
+          vs.sessionId = msg.d.session_id;
+          voiceStates.set(msg.d.guild_id, vs);
+          syncLavalinkPlayer(msg.d.guild_id);
+        }
+
         fetch(VERCEL_DISPATCH_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
@@ -169,6 +261,12 @@ function spawnPresenceSocket(botId, token, botName) {
         }).catch(() => {});
       }
       if (msg.t === 'VOICE_SERVER_UPDATE' && msg.d) {
+        const vs = voiceStates.get(msg.d.guild_id) || {};
+        vs.token = msg.d.token;
+        vs.endpoint = msg.d.endpoint;
+        voiceStates.set(msg.d.guild_id, vs);
+        syncLavalinkPlayer(msg.d.guild_id);
+
         fetch(VERCEL_DISPATCH_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
@@ -182,17 +280,22 @@ function spawnPresenceSocket(botId, token, botName) {
           body: JSON.stringify({ botId, token, event: 'MESSAGE_CREATE', data: msg.d })
         }).catch(() => {});
       }
+      if (msg.t === 'READY' && msg.d && msg.d.user) {
+        const curSession = activeSockets.get(botId);
+        if (curSession) curSession.botUserId = msg.d.user.id;
+        connectLavalink(msg.d.user.id);
+      }
     } catch (_) {}
   });
 
-  ws.on('close', () => { clearInterval(timer); activeSessions.delete(botId); setTimeout(() => spawnPresenceSocket(botId, token, botName), 5000); });
+  ws.on('close', () => { clearInterval(timer); activeSockets.delete(botId); setTimeout(() => spawnPresenceSocket(botId, token, botName), 5000); });
   ws.on('error', () => { try { ws.close(); } catch (_) {} });
-  activeSessions.set(botId, { ws, timer, token });
+  activeSockets.set(botId, { ws, timer, token, botUserId: '1525726396117287073' });
 }
 
 function killPresenceSocket(botId) {
-  const s = activeSessions.get(botId);
-  if (s) { clearInterval(s.timer); try { s.ws.close(); } catch (_) {} activeSessions.delete(botId); }
+  const s = activeSockets.get(botId);
+  if (s) { clearInterval(s.timer); try { s.ws.close(); } catch (_) {} activeSockets.delete(botId); }
 }
 
 initMesh();
@@ -664,4 +767,3 @@ function connectDiscordGateway() {
 connectDiscordGateway();
 `;
 }
-

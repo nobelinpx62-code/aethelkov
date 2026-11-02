@@ -155,7 +155,7 @@ export async function POST(req: NextRequest) {
                 await channel.send({
                   type: 'broadcast',
                   event: 'CONNECT_VOICE',
-                  payload: { botId, guildId, userId: callerUserId },
+                  payload: { botId, guildId, channelId: data.channel_id, userId: callerUserId, track },
                 });
               }
             } else {
@@ -253,7 +253,7 @@ export async function POST(req: NextRequest) {
               await channel.send({
                 type: 'broadcast',
                 event: 'CONNECT_VOICE',
-                payload: { botId, guildId, userId: callerUserId, query, track },
+                payload: { botId, guildId, channelId: data.channel_id, userId: callerUserId, query, track },
               });
             }
           } else {

@@ -300,10 +300,10 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
           }
         }, interval);
 
-        // Intents completos: GUILDS (1) + GUILD_VOICE_STATES (128) + GUILD_MESSAGES (512) + DIRECT (4096) + MESSAGE_CONTENT (32768)
+        // Intents universais: GUILDS (1) + GUILD_VOICE_STATES (128) + GUILD_MESSAGES (512) + GUILD_MESSAGE_REACTIONS (1024) + DIRECT (4096) + DIRECT_MESSAGE_REACTIONS (8192) + MESSAGE_CONTENT (32768)
         const finalIntents = attemptWithoutPrivileged
-          ? 1 | 128 | 512 | 4096
-          : 1 | 128 | 512 | 4096 | 32768;
+          ? 1 | 128 | 512 | 1024 | 4096 | 8192
+          : 1 | 128 | 512 | 1024 | 4096 | 8192 | 32768;
 
         ws.send(
           JSON.stringify({
@@ -410,6 +410,28 @@ function connectGateway(botId, token, botName = 'Bot', attemptWithoutPrivileged 
           token,
           type: 'DISCORD_EVENT',
           event: 'INTERACTION_CREATE',
+          data: d,
+        });
+      }
+
+      // Repassa reações de mensagens (Reaction Roles, Tickets, Enquetes)
+      if ((t === 'MESSAGE_REACTION_ADD' || t === 'MESSAGE_REACTION_REMOVE') && d) {
+        postToVercel({
+          botId,
+          token,
+          type: 'DISCORD_EVENT',
+          event: t,
+          data: d,
+        });
+      }
+
+      // Repassa novos membros que entraram no servidor (Boas-vindas / Auto-role)
+      if (t === 'GUILD_MEMBER_ADD' && d) {
+        postToVercel({
+          botId,
+          token,
+          type: 'DISCORD_EVENT',
+          event: t,
           data: d,
         });
       }

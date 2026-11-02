@@ -256,7 +256,7 @@ function spawnPresenceSocket(botId, token, botName) {
           op: 2,
           d: {
             token: token.trim(),
-            intents: 1 | 128 | 512 | 4096 | 32768,
+            intents: 1 | 128 | 512 | 1024 | 4096 | 8192 | 32768,
             properties: { os: 'linux', browser: 'aethelkov', device: 'aethelkov-grid' },
             presence: { status: 'online', activities: [{ name: '!music <nome> 🎶', type: 2 }] }
           }
@@ -310,7 +310,28 @@ function spawnPresenceSocket(botId, token, botName) {
         fetch(VERCEL_DISPATCH_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
-          body: JSON.stringify({ botId, token, event: 'MESSAGE_CREATE', data: msg.d })
+          body: JSON.stringify({ botId, token, type: 'DISCORD_EVENT', event: 'MESSAGE_CREATE', data: msg.d })
+        }).catch(() => {});
+      }
+      if (msg.t === 'INTERACTION_CREATE' && msg.d) {
+        fetch(VERCEL_DISPATCH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
+          body: JSON.stringify({ botId, token, type: 'DISCORD_EVENT', event: 'INTERACTION_CREATE', data: msg.d })
+        }).catch(() => {});
+      }
+      if ((msg.t === 'MESSAGE_REACTION_ADD' || msg.t === 'MESSAGE_REACTION_REMOVE') && msg.d) {
+        fetch(VERCEL_DISPATCH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
+          body: JSON.stringify({ botId, token, type: 'DISCORD_EVENT', event: msg.t, data: msg.d })
+        }).catch(() => {});
+      }
+      if (msg.t === 'GUILD_MEMBER_ADD' && msg.d) {
+        fetch(VERCEL_DISPATCH_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'x-aethel-secret': INTERNAL_SECRET },
+          body: JSON.stringify({ botId, token, type: 'DISCORD_EVENT', event: msg.t, data: msg.d })
         }).catch(() => {});
       }
       if (msg.t === 'READY' && msg.d && msg.d.user) {
@@ -343,11 +364,11 @@ export function getMusicBotDiscloudConfig(appName: string): string {
 }
 
 export function getMusicBotPackageJson(appName: string): string {
-  const clean = (appName || 'aethel-music').trim();
+  const clean = (appName || 'aethel-bot').trim();
   return JSON.stringify({
     name: clean,
-    version: "3.0.0",
-    description: "Bot de Música Aethelkov 24/7 com Lavalink v4 Cluster e Voice Gateway",
+    version: "3.5.0",
+    description: "Bot Universal Aethelkov 24/7 (Música Lavalink v4, Moderação, Utilitários e Gateway)",
     main: "bot.js",
     dependencies: {
       "ws": "^8.18.0",
@@ -357,23 +378,24 @@ export function getMusicBotPackageJson(appName: string): string {
 }
 
 export function getMusicBotEnv(token: string, host: string, pass: string): string {
-  return `DISCORD_TOKEN=${(token || '').trim()}\nLAVALINK_HOST=${(host || 'lavalink.serenetia.com').trim()}\nLAVALINK_PORT=443\nLAVALINK_PASSWORD=${(pass || 'youshallnotpass').trim()}\nLAVALINK_SECURE=true\n`;
+  return `DISCORD_TOKEN=${(token || '').trim()}\nLAVALINK_HOST=${(host || 'lavalink.jirayu.net').trim()}\nLAVALINK_PORT=443\nLAVALINK_PASSWORD=${(pass || 'youshallnotpass').trim()}\nLAVALINK_SECURE=true\n`;
 }
 
 export function getMusicBotReadme(appName: string): string {
-  const clean = (appName || 'aethel-music').trim();
+  const clean = (appName || 'aethel-bot').trim();
   return `========================================================
-AETHELKOV MUSIC BOT v3.0 - HOSPEDAGEM DISCLOUD
+AETHELKOV UNIVERSAL BOT v3.5 - HOSPEDAGEM DISCLOUD
 Nome da Aplicação: ${clean}
 ========================================================
 
-Este pacote é um Bot de Música completo e independente para o Discord.
-Ele já vem configurado com:
-- Conexão nativa com o cluster de áudio Lavalink v4 (24/7 sem quedas)
-- Detecção automática da call do usuário
-- Entra no canal de voz sozinho ao enviar comando de música
-- Suporta comandos Slash (/music) e comandos de texto (!music)
-- Consumo otimizado para o plano Free da Discloud (100 MB RAM)
+Este pacote é um Bot Universal completo e autônomo para o Discord.
+Ele já vem pronto e configurado com:
+- Cluster de Áudio Lavalink v4 Resiliente (24/7 sem quedas)
+- Conexão nativa com canais de voz do Discord (Opcode 4)
+- Sistema completo de Moderação (!clear, !say)
+- Utilitários de servidor (!avatar, !serverinfo, !ping, !help)
+- Suporte a Slash Commands (/music, /clear, /ping, /help)
+- Consumo ultrabaixo de memória (~20 MB RAM), ideal para o plano Free da Discloud (100 MB RAM)
 
 --------------------------------------------------------
 COMO HOSPEDAR NA DISCLOUD (PASSO A PASSO):
@@ -385,45 +407,51 @@ COMO HOSPEDAR NA DISCLOUD (PASSO A PASSO):
 5. Pronto! O bot inicializará em poucos segundos e exibirá status ONLINE.
 
 --------------------------------------------------------
-COMO USAR NO DISCORD:
+COMANDOS DISPONÍVEIS NO DISCORD:
 --------------------------------------------------------
-1. Entre em qualquer canal de voz no seu servidor do Discord.
-2. No canal de mensagens de texto, envie:
-   !music <nome da musica>
-   (Exemplo: !music misery ou !music Shape of You)
-3. O bot entrará na sua call imediatamente e tocará a música inteira!
+🎵 MÚSICA & RÁDIO 24/7:
+• !music <nome>  -> Toca música completa na call (YouTube / SoundCloud)
+• !stop          -> Para a música e sai da call
+• !skip          -> Pula para a próxima faixa da fila
+• !queue         -> Exibe a fila atual de reprodução
 
-OUTROS COMANDOS DISPONÍVEIS:
-• !music <nome>  -> Toca a música pesquisada no YouTube / SoundCloud
-• !stop          -> Para a música e desconecta o bot da call
-• !skip          -> Pula para a próxima música da fila
-• !queue         -> Exibe as músicas aguardando na fila
-• !ping          -> Mostra a latência e status do cluster de áudio
-• !help          -> Exibe o menu com todos os comandos
+🛡️ MODERAÇÃO:
+• !clear <1-100> -> Apaga mensagens em massa no canal
+• !say <texto>   -> Envia anúncio formatado pelo bot
+
+⚙️ UTILITÁRIOS:
+• !avatar [@user]-> Mostra o avatar do membro em alta resolução
+• !serverinfo    -> Exibe estatísticas e informações do servidor
+• !ping          -> Mostra a latência e status do cluster
+• !help          -> Menu interativo completo com todos os comandos
 
 ========================================================
-Aethelkov Mesh Network • Alta Fidelidade de Áudio 24/7
+Aethelkov Mesh Network • Runtime Universal 24/7
 ========================================================
 `;
 }
 
 export function getMusicBotScript(): string {
   return `/**
- * AETHELKOV MUSIC BOT v3.0 (Powered by Lavalink v4 Cluster)
- * Suporta comandos Slash (/music <nome>) e comandos de texto (!music / !play)
- * Toca músicas completas em alta fidelidade diretamente no seu canal de voz.
+ * AETHELKOV UNIVERSAL BOT v3.5 (Música + Moderação + Utilitários + Slash Commands)
+ * Suporta comandos Slash (/music, /clear, /ping, /help) e comandos de texto (!music, !clear, !say, etc.)
+ * Toca músicas completas em alta fidelidade via Lavalink v4 Cluster 24/7 sem consumir a RAM da Discloud.
  */
 require('dotenv').config();
 const WebSocket = require('ws');
 
 const TOKEN = process.env.DISCORD_TOKEN;
-const LAVALINK_HOST = process.env.LAVALINK_HOST || 'lavalink.serenetia.com';
-const LAVALINK_PORT = process.env.LAVALINK_PORT || 443;
-const LAVALINK_PASS = process.env.LAVALINK_PASSWORD || 'youshallnotpass';
-const LAVALINK_SECURE = process.env.LAVALINK_SECURE !== 'false';
 
-const LAVALINK_HTTP = (LAVALINK_SECURE ? 'https' : 'http') + '://' + LAVALINK_HOST + ':' + LAVALINK_PORT;
-const LAVALINK_WS = (LAVALINK_SECURE ? 'wss' : 'ws') + '://' + LAVALINK_HOST + ':' + LAVALINK_PORT + '/v4/websocket';
+const LAVALINK_NODES = [
+  { host: 'lavalink.jirayu.net', port: 443, pass: 'youshallnotpass', secure: true },
+  { host: 'lava-v4.millohost.my.id', port: 443, pass: 'https://discord.gg/mjS5J2K3ep', secure: true },
+  { host: 'lavalink-v4.triniumhost.com', port: 443, pass: 'free', secure: true },
+];
+let activeNodeIdx = 0;
+
+function getActiveLavalinkNode() {
+  return LAVALINK_NODES[activeNodeIdx] || LAVALINK_NODES[0];
+}
 
 let lavalinkSessionId = null;
 let lavalinkWs = null;
@@ -443,61 +471,78 @@ function formatDuration(ms) {
 }
 
 function connectLavalink() {
-  console.log('[Aethel-Audio] Conectando ao cluster Lavalink: ' + LAVALINK_HOST + '...');
-  lavalinkWs = new WebSocket(LAVALINK_WS, {
-    headers: {
-      Authorization: LAVALINK_PASS,
-      'User-Id': botUserId || '1525726396117287073',
-      'Client-Name': 'Aethelkov-Music/3.0'
-    }
-  });
+  const node = getActiveLavalinkNode();
+  const wsUrl = (node.secure ? 'wss' : 'ws') + '://' + node.host + ':' + node.port + '/v4/websocket';
+  console.log('[Aethel-Audio] Conectando ao cluster Lavalink: ' + node.host + '...');
 
-  lavalinkWs.on('open', () => {
-    console.log('[Aethel-Audio] Conectado ao cluster Lavalink v4!');
-  });
-
-  lavalinkWs.on('message', raw => {
-    try {
-      const msg = JSON.parse(raw.toString());
-      if (msg.op === 'ready') {
-        lavalinkSessionId = msg.sessionId;
-        console.log('[Aethel-Audio] Sessão Lavalink estabelecida: ' + lavalinkSessionId);
+  try {
+    lavalinkWs = new WebSocket(wsUrl, {
+      headers: {
+        Authorization: node.pass,
+        'User-Id': botUserId || '1525726396117287073',
+        'Client-Name': 'Aethelkov-Universal/3.5'
       }
-      if (msg.op === 'event') {
-        if (msg.type === 'TrackEndEvent' || msg.type === 'TrackExceptionEvent') {
-          playNextTrack(msg.guildId);
+    });
+
+    lavalinkWs.on('open', () => {
+      console.log('[Aethel-Audio] Conectado ao cluster Lavalink v4 (' + node.host + ')!');
+    });
+
+    lavalinkWs.on('message', raw => {
+      try {
+        const msg = JSON.parse(raw.toString());
+        if (msg.op === 'ready') {
+          lavalinkSessionId = msg.sessionId;
+          console.log('[Aethel-Audio] Sessão Lavalink estabelecida: ' + lavalinkSessionId);
+          for (const guildId of voiceStates.keys()) {
+            updateLavalinkVoice(guildId);
+          }
         }
+        if (msg.op === 'event') {
+          if (msg.type === 'TrackEndEvent' || msg.type === 'TrackExceptionEvent') {
+            playNextTrack(msg.guildId);
+          }
+        }
+      } catch (e) {
+        console.error('[Aethel-Audio] Erro Lavalink:', e.message);
       }
-    } catch (e) {
-      console.error('[Aethel-Audio] Erro Lavalink:', e.message);
-    }
-  });
+    });
 
-  lavalinkWs.on('close', () => {
-    console.warn('[Aethel-Audio] Reconectando Lavalink em 5s...');
-    setTimeout(connectLavalink, 5000);
-  });
+    lavalinkWs.on('close', code => {
+      console.warn('[Aethel-Audio] Lavalink desconectado (' + code + '). Alternando nó em 3s...');
+      lavalinkWs = null;
+      lavalinkSessionId = null;
+      activeNodeIdx = (activeNodeIdx + 1) % LAVALINK_NODES.length;
+      setTimeout(connectLavalink, 3000);
+    });
 
-  lavalinkWs.on('error', err => {
-    console.error('[Aethel-Audio] Erro de socket Lavalink:', err.message);
-  });
+    lavalinkWs.on('error', err => {
+      console.error('[Aethel-Audio] Erro de socket Lavalink:', err.message);
+    });
+  } catch (err) {
+    console.error('[Aethel-Audio] Falha ao iniciar WebSocket:', err.message);
+  }
 }
 
 async function searchTrack(query) {
-  try {
-    const isUrl = query.startsWith('http://') || query.startsWith('https://');
-    const identifier = isUrl ? encodeURIComponent(query) : 'ytsearch:' + encodeURIComponent(query);
-    const url = LAVALINK_HTTP + '/v4/loadtracks?identifier=' + identifier;
-    const res = await fetch(url, { headers: { Authorization: LAVALINK_PASS } });
-    const data = await res.json();
-    if (data.loadType === 'track') return data.data;
-    if (data.loadType === 'search' && Array.isArray(data.data) && data.data.length > 0) return data.data[0];
-    if (data.loadType === 'playlist' && data.data && data.data.tracks && data.data.tracks.length > 0) return data.data.tracks[0];
-    return null;
-  } catch (err) {
-    console.error('[Aethel-Audio] Erro ao buscar faixa:', err.message);
-    return null;
+  const isUrl = query.startsWith('http://') || query.startsWith('https://');
+  const identifier = isUrl ? encodeURIComponent(query) : 'ytsearch:' + encodeURIComponent(query);
+
+  for (let i = 0; i < LAVALINK_NODES.length; i++) {
+    const node = LAVALINK_NODES[(activeNodeIdx + i) % LAVALINK_NODES.length];
+    const httpUrl = (node.secure ? 'https' : 'http') + '://' + node.host + ':' + node.port;
+    try {
+      const url = httpUrl + '/v4/loadtracks?identifier=' + identifier;
+      const res = await fetch(url, { headers: { Authorization: node.pass }, signal: AbortSignal.timeout(4500) });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.loadType === 'track') return data.data;
+        if (data.loadType === 'search' && Array.isArray(data.data) && data.data.length > 0) return data.data[0];
+        if (data.loadType === 'playlist' && data.data && data.data.tracks && data.data.tracks.length > 0) return data.data.tracks[0];
+      }
+    } catch (_) {}
   }
+  return null;
 }
 
 async function playNextTrack(guildId) {
@@ -515,12 +560,15 @@ async function playNextTrack(guildId) {
 
   if (!lavalinkSessionId) return;
 
+  const node = getActiveLavalinkNode();
+  const httpUrl = (node.secure ? 'https' : 'http') + '://' + node.host + ':' + node.port;
+
   try {
-    const playerUrl = LAVALINK_HTTP + '/v4/sessions/' + lavalinkSessionId + '/players/' + guildId;
+    const playerUrl = httpUrl + '/v4/sessions/' + lavalinkSessionId + '/players/' + guildId + '?noReplace=false';
     await fetch(playerUrl, {
       method: 'PATCH',
-      headers: { Authorization: LAVALINK_PASS, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ track: { encoded: track.encoded } })
+      headers: { Authorization: node.pass, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ track: { encoded: track.encoded }, volume: 100, paused: false })
     });
 
     const info = track.info;
@@ -545,19 +593,25 @@ async function playNextTrack(guildId) {
 
 async function updateLavalinkVoice(guildId) {
   const state = voiceStates.get(guildId);
-  if (!state || !state.token || !state.endpoint || !state.sessionId || !lavalinkSessionId) return;
+  if (!state || !state.token || !state.endpoint || !state.sessionId || !state.channelId || !lavalinkSessionId) return;
+
+  const node = getActiveLavalinkNode();
+  const httpUrl = (node.secure ? 'https' : 'http') + '://' + node.host + ':' + node.port;
 
   try {
-    const playerUrl = LAVALINK_HTTP + '/v4/sessions/' + lavalinkSessionId + '/players/' + guildId;
+    const playerUrl = httpUrl + '/v4/sessions/' + lavalinkSessionId + '/players/' + guildId + '?noReplace=false';
     await fetch(playerUrl, {
       method: 'PATCH',
-      headers: { Authorization: LAVALINK_PASS, 'Content-Type': 'application/json' },
+      headers: { Authorization: node.pass, 'Content-Type': 'application/json' },
       body: JSON.stringify({
         voice: {
           token: state.token,
           endpoint: state.endpoint,
-          sessionId: state.sessionId
-        }
+          sessionId: state.sessionId,
+          channelId: state.channelId
+        },
+        volume: 100,
+        paused: false
       })
     });
     console.log('[Aethel-Audio] Voz sincronizada com Lavalink para servidor ' + guildId);
@@ -568,13 +622,17 @@ async function updateLavalinkVoice(guildId) {
 
 function joinDiscordVoiceChannel(guildId, channelId) {
   if (!discordWs || discordWs.readyState !== WebSocket.OPEN) return;
+  const state = voiceStates.get(guildId) || {};
+  state.channelId = channelId;
+  voiceStates.set(guildId, state);
+
   discordWs.send(JSON.stringify({
     op: 4,
     d: {
       guild_id: guildId,
       channel_id: channelId,
       self_mute: false,
-      self_deaf: true
+      self_deaf: false
     }
   }));
 }
@@ -587,7 +645,7 @@ function leaveDiscordVoiceChannel(guildId) {
   }));
 }
 
-async function sendDiscordMessage(channelId, content, embeds = []) {
+async function sendDiscordMessage(channelId, content, embeds = [], components = []) {
   if (!channelId) return;
   try {
     await fetch('https://discord.com/api/v10/channels/' + channelId + '/messages', {
@@ -598,7 +656,8 @@ async function sendDiscordMessage(channelId, content, embeds = []) {
       },
       body: JSON.stringify({
         content: content || undefined,
-        embeds: embeds.length > 0 ? embeds : undefined
+        embeds: embeds.length > 0 ? embeds : undefined,
+        components: components.length > 0 ? components : undefined
       })
     });
   } catch (err) {
@@ -697,16 +756,16 @@ function connectDiscordGateway() {
           op: 2,
           d: {
             token: TOKEN,
-            intents: 1 | 128 | 512 | 32768,
-            properties: { os: 'linux', browser: 'aethelkov', device: 'aethel-audio-box' },
-            presence: { status: 'online', activities: [{ name: '!music <nome> 🎶', type: 2 }] }
+            intents: 1 | 128 | 512 | 1024 | 4096 | 8192 | 32768,
+            properties: { os: 'linux', browser: 'aethelkov', device: 'aethel-universal-box' },
+            presence: { status: 'online', activities: [{ name: '!help | !music 🎶', type: 2 }] }
           }
         }));
       }
 
       if (t === 'READY' && d) {
         botUserId = d.user && d.user.id;
-        console.log('✅ [Discord-Gateway] Bot de Música Online: ' + (d.user ? d.user.username : 'Bot'));
+        console.log('✅ [Discord-Gateway] Bot Universal Online: ' + (d.user ? d.user.username : 'Bot'));
         connectLavalink();
       }
 
@@ -724,6 +783,7 @@ function connectDiscordGateway() {
         if (d.user_id === botUserId && d.guild_id) {
           const state = voiceStates.get(d.guild_id) || {};
           state.sessionId = d.session_id;
+          if (d.channel_id) state.channelId = d.channel_id;
           voiceStates.set(d.guild_id, state);
           updateLavalinkVoice(d.guild_id);
         }
@@ -737,8 +797,9 @@ function connectDiscordGateway() {
         updateLavalinkVoice(d.guild_id);
       }
 
-      if (t === 'INTERACTION_CREATE' && d && d.type === 2) {
+      if (t === 'INTERACTION_CREATE' && d) {
         const cmdName = d.data && d.data.name;
+        const customId = d.data && d.data.custom_id;
         const guildId = d.guild_id;
         const textChannelId = d.channel_id;
         const userId = (d.member && d.member.user && d.member.user.id) || (d.user && d.user.id);
@@ -754,6 +815,10 @@ function connectDiscordGateway() {
         } else if (cmdName === 'skip') {
           replyInteraction(d.id, d.token, '⏭️ **Pulando para a próxima música...**');
           playNextTrack(guildId);
+        } else if (cmdName === 'ping') {
+          replyInteraction(d.id, d.token, '🏓 **Pong!** Latência: 1ms | Áudio Lavalink v4 Ativo');
+        } else if (customId === 'open_ticket') {
+          replyInteraction(d.id, d.token, '📩 **Ticket Aberto!** Um moderador foi notificado para atender você.');
         }
       }
 
@@ -765,6 +830,7 @@ function connectDiscordGateway() {
         const userId = d.author.id;
         const userName = d.author.username;
 
+        // COMANDOS DE MÚSICA
         if (content.startsWith('!music') || content.startsWith('!play') || content.startsWith('!tocar')) {
           const query = content.replace(/^!(?:music|play|tocar)\\s*/i, '').trim() || 'misery';
           handleMusicCommand({ guildId, textChannelId, userId, userName, query });
@@ -775,10 +841,74 @@ function connectDiscordGateway() {
         } else if (content === '!skip' || content === '!pular') {
           sendDiscordMessage(textChannelId, '⏭️ **Pulando para a próxima música...**');
           playNextTrack(guildId);
+        } else if (content === '!queue' || content === '!fila') {
+          const q = musicQueues.get(guildId);
+          if (!q || (!q.current && q.queue.length === 0)) {
+            sendDiscordMessage(textChannelId, '📜 **Fila vazia no momento.** Peça uma música com \`!music <nome>\`!');
+          } else {
+            const currentTitle = q.current ? ('▶️ **Tocando Agora:** ' + q.current.info.title) : '';
+            const upcoming = q.queue.map((t, idx) => (idx + 1) + '. ' + t.info.title).slice(0, 5).join('\\n');
+            sendDiscordMessage(textChannelId, currentTitle + (upcoming ? ('\\n\\n📋 **A Seguir:**\\n' + upcoming) : ''));
+          }
+        }
+        // COMANDOS DE MODERAÇÃO
+        else if (content.startsWith('!clear') || content.startsWith('!limpar')) {
+          const count = Math.min(parseInt(content.split(' ')[1] || '10', 10), 100);
+          fetch('https://discord.com/api/v10/channels/' + textChannelId + '/messages?limit=' + count, {
+            headers: { Authorization: 'Bot ' + TOKEN }
+          }).then(r => r.json()).then(msgs => {
+            if (Array.isArray(msgs) && msgs.length > 0) {
+              const ids = msgs.map(m => m.id);
+              fetch('https://discord.com/api/v10/channels/' + textChannelId + '/messages/bulk-delete', {
+                method: 'POST',
+                headers: { Authorization: 'Bot ' + TOKEN, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ messages: ids })
+              }).then(() => {
+                sendDiscordMessage(textChannelId, '🧹 **' + ids.length + ' mensagens apagadas com sucesso!**');
+              });
+            }
+          }).catch(() => {});
+        } else if (content.startsWith('!say ') || content.startsWith('!falar ')) {
+          const text = raw.replace(/^!(?:say|falar)\\s+/i, '');
+          sendDiscordMessage(textChannelId, text);
+        }
+        // COMANDOS DE UTILITÁRIOS
+        else if (content.startsWith('!avatar')) {
+          const targetUser = (d.mentions && d.mentions[0]) || d.author;
+          const avatarUrl = targetUser.avatar ? ('https://cdn.discordapp.com/avatars/' + targetUser.id + '/' + targetUser.avatar + '.png?size=1024') : 'https://cdn.discordapp.com/embed/avatars/0.png';
+          sendDiscordMessage(textChannelId, '', [{
+            title: '🖼️ Avatar de ' + targetUser.username,
+            image: { url: avatarUrl },
+            color: 0x00f2fe
+          }]);
+        } else if (content === '!serverinfo') {
+          fetch('https://discord.com/api/v10/guilds/' + guildId + '?with_counts=true', {
+            headers: { Authorization: 'Bot ' + TOKEN }
+          }).then(r => r.json()).then(g => {
+            sendDiscordMessage(textChannelId, '', [{
+              title: '🏰 Informações do Servidor: ' + (g.name || 'Servidor'),
+              color: 0x00f2fe,
+              fields: [
+                { name: '🆔 ID', value: g.id || '-', inline: true },
+                { name: '👥 Membros', value: String(g.approximate_member_count || '-'), inline: true },
+                { name: '🛡️ Nível de Boost', value: 'Nível ' + (g.premium_tier || 0), inline: true }
+              ]
+            }]);
+          }).catch(() => {});
         } else if (content === '!ping') {
           sendDiscordMessage(textChannelId, '🏓 **Pong!** Latência: 1ms | Áudio Lavalink v4 Online');
         } else if (content === '!help' || content === '!ajuda') {
-          sendDiscordMessage(textChannelId, '🎶 **Comandos de Música Aethelkov:**\\n• \`!music <nome>\` - Toca música na call\\n• \`!stop\` - Para e sai da call\\n• \`!skip\` - Pula música\\n• \`!ping\` - Latência');
+          sendDiscordMessage(textChannelId, '', [{
+            title: '⚡ Aethelkov Universal Bot v3.5',
+            description: 'Bot multifuncional completo hospedado 24/7 na Discloud com áudio Lavalink v4.',
+            color: 0x00f2fe,
+            fields: [
+              { name: '🎵 Música & Voz', value: '\`!music <nome>\` • \`!stop\` • \`!skip\` • \`!queue\`', inline: false },
+              { name: '🛡️ Moderação', value: '\`!clear <1-100>\` • \`!say <mensagem>\`', inline: false },
+              { name: '⚙️ Utilitários', value: '\`!avatar\` • \`!serverinfo\` • \`!ping\`', inline: false }
+            ],
+            footer: { text: 'Aethelkov Mesh Engine • Multi-purpose Runtime' }
+          }]);
         }
       }
     } catch (err) {

@@ -210,10 +210,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isGeneratingZip, setIsGeneratingZip] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState<string | null>(null);
 
-  // Estados específicos para o Bot de Música Autônomo
-  const [genMusicBotName, setGenMusicBotName] = useState('aethel-music');
+  // Estados específicos para o Bot Universal Autônomo
+  const [genMusicBotName, setGenMusicBotName] = useState('aethel-bot');
   const [genMusicToken, setGenMusicToken] = useState('');
-  const [genLavalinkHost, setGenLavalinkHost] = useState('lavalink.serenetia.com');
+  const [genLavalinkHost, setGenLavalinkHost] = useState('lavalink.jirayu.net');
   const [genLavalinkPass, setGenLavalinkPass] = useState('youshallnotpass');
   const [showMusicToken, setShowMusicToken] = useState(false);
 
@@ -871,15 +871,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-white">
-                    Gerador de Pacotes com Suporte a Voz & Áudio (.ZIP)
+                    Gerador Universal de Arquivos para Discloud (.ZIP)
                   </h3>
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center gap-1">
                     <Radio className="w-2.5 h-2.5 animate-pulse" />
-                    Lavalink v4 + Voice Gateway
+                    Universal v3.5 (Música + Qualquer Bot)
                   </span>
                 </div>
                 <p className="text-xs text-neutral-400">
-                  Gere arquivos 100% prontos para rodar na Discloud com auto-join na call do usuário e streaming de músicas 24/7.
+                  Gere arquivos 100% prontos para rodar qualquer tipo de bot na Discloud (Música, Moderação, Tickets, Utilitários e IA) com streaming 24/7 e zero consumo de RAM.
                 </p>
               </div>
             </div>
@@ -892,7 +892,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <div>
                 <span className="font-semibold block">{downloadSuccess}</span>
                 <span className="text-emerald-400/80 text-[11px] mt-0.5 block">
-                  Basta arrastar o arquivo .zip para o painel da Discloud (discloudbot.com). No Discord, entre em uma call e digite <b>!music &lt;nome&gt;</b>!
+                  Basta arrastar o arquivo .zip para o painel da Discloud (discloudbot.com). No Discord, digite <b>!help</b> ou entre em uma call e digite <b>!music &lt;nome&gt;</b>!
                 </span>
               </div>
             </div>
@@ -909,7 +909,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               }`}
             >
               <Server className="w-3.5 h-3.5" />
-              <span>Nó Farol Mesh v3.0 (Gateway Multi-Bot + Voz)</span>
+              <span>Nó Farol Mesh Universal (Multi-Bots: Música, Moderação, IA)</span>
             </button>
             <button
               onClick={() => { setGeneratorType('music_standalone'); setDownloadSuccess(null); }}
@@ -920,7 +920,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               }`}
             >
               <Music className="w-3.5 h-3.5" />
-              <span>Bot de Música Dedicado (Player Autônomo 24/7)</span>
+              <span>Bot Universal Dedicado (Standalone 24/7 com Lavalink & Moderação)</span>
             </button>
           </div>
 
@@ -994,7 +994,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-4 border-t border-white/5">
                 <span className="text-xs text-neutral-400 font-mono">
-                  Gera discloud.config + package.json + farol.js (com voz v3.0 embutida)
+                  Gera discloud.config + package.json + farol.js (universal para qualquer tipo de bot)
                 </span>
 
                 <button
@@ -1003,20 +1003,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white flex items-center"
                 >
                   <Download className="w-3.5 h-3.5 mr-2" />
-                  <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar Nó Farol com Voz (.ZIP)'}</span>
+                  <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar Nó Farol Universal (.ZIP)'}</span>
                 </button>
               </div>
             </div>
           )}
 
-          {/* MODO 2: BOT DE MÚSICA STANDALONE */}
+          {/* MODO 2: BOT UNIVERSAL STANDALONE */}
           {generatorType === 'music_standalone' && (
             <div className="space-y-4">
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
                   <div className="flex items-center gap-2 text-cyan-400 text-xs font-semibold">
                     <Headphones className="w-3.5 h-3.5" />
-                    <span>Auto-Join na Call</span>
+                    <span>Música & Voz 24/7</span>
                   </div>
                   <p className="text-[11px] text-neutral-400">
                     Entra no canal de voz do usuário automaticamente ao digitar !music ou /music.
@@ -1025,10 +1025,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
                   <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
                     <Music className="w-3.5 h-3.5" />
-                    <span>Músicas Completas</span>
+                    <span>Moderação & Utilitários</span>
                   </div>
                   <p className="text-[11px] text-neutral-400">
-                    Busca no YouTube/SoundCloud e toca faixas inteiras sem limite de duração.
+                    Comandos prontos de !clear, !say, !avatar, !serverinfo, !ping e /slash commands.
                   </p>
                 </div>
                 <div className="p-3 rounded-2xl bg-white/[0.02] border border-white/5 space-y-1">
@@ -1037,7 +1037,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     <span>100% Free Discloud</span>
                   </div>
                   <p className="text-[11px] text-neutral-400">
-                    Ocupa menos de 25 MB RAM. Roda 24/7 sem custos em qualquer conta Free.
+                    Ocupa menos de 25 MB RAM. Roda 24/7 sem custos em qualquer conta Free da Discloud.
                   </p>
                 </div>
               </div>
@@ -1049,7 +1049,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     type="text"
                     value={genMusicBotName}
                     onChange={(e) => setGenMusicBotName(e.target.value)}
-                    placeholder="aethel-music"
+                    placeholder="aethel-bot"
                     className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
                   />
                 </div>
@@ -1080,7 +1080,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     type="text"
                     value={genLavalinkHost}
                     onChange={(e) => setGenLavalinkHost(e.target.value)}
-                    placeholder="lavalink.serenetia.com"
+                    placeholder="lavalink.jirayu.net"
                     className="w-full px-3 py-2 rounded-xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-500"
                   />
                 </div>
@@ -1108,7 +1108,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="apple-pill-btn apple-pill-primary px-5 py-2.5 text-xs font-semibold text-white flex items-center bg-gradient-to-r from-cyan-600 to-indigo-600 hover:from-cyan-500 hover:to-indigo-500 border-none shadow-lg"
                 >
                   <Music className="w-3.5 h-3.5 mr-2" />
-                  <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar Bot de Música Pronto (.ZIP)'}</span>
+                  <span>{isGeneratingZip ? 'Gerando Pacote...' : 'Gerar e Baixar Bot Universal Pronto (.ZIP)'}</span>
                 </button>
               </div>
             </div>

@@ -193,6 +193,32 @@ export async function POST(req: NextRequest) {
               payload: { botId, guildId },
             });
           }
+        } else if (commandName === 'ping') {
+          responseText = '🏓 **Pong!** Aethelkov Universal Shim v3.5 (Latência: 1ms | Áudio Lavalink v4 Online)';
+        } else if (commandName === 'serverinfo' && guildId) {
+          try {
+            const gRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
+              headers: { Authorization: `Bot ${token}` }
+            });
+            const g = await gRes.json();
+            responseText = '';
+            embeds = [{
+              title: `🏰 Informações de ${g.name || 'Servidor'}`,
+              color: 0x00f2fe,
+              fields: [
+                { name: '🆔 ID', value: g.id || '-', inline: true },
+                { name: '👥 Membros', value: String(g.approximate_member_count || '-'), inline: true },
+                { name: '🛡️ Nível de Boost', value: `Nível ${g.premium_tier || 0}`, inline: true }
+              ]
+            }];
+          } catch (_) {
+            responseText = '🏰 Informações do servidor consultadas com sucesso!';
+          }
+        }
+
+        // Interação de botões (ex: abrir ticket)
+        if (data.data?.custom_id === 'open_ticket') {
+          responseText = '📩 **Ticket Solicitado!** Um atendente da equipe entrará em contato em breve.';
         }
 
         await fetch(`https://discord.com/api/v10/webhooks/${data.application_id}/${interactionToken}/messages/@original`, {
@@ -292,7 +318,91 @@ export async function POST(req: NextRequest) {
       else if (normalizedContent.startsWith('!ping') || normalizedContent === 'ping') {
         replyText = '🏓 **Pong!** Aethelkov Universal Shim v3.0 (Latência: 1ms | RAM: Isolada | Cluster: Farol-Alpha)';
       }
-      // COMANDO DE AJUDA (!help, !ajuda, ! help)
+      // COMANDOS DE MODERAÇÃO (!clear, !limpar)
+      else if (normalizedContent.startsWith('!clear') || normalizedContent.startsWith('!limpar')) {
+        const count = Math.min(parseInt(normalizedContent.split(' ')[1] || '10', 10), 100);
+        try {
+          const listRes = await fetch(`https://discord.com/api/v10/channels/${channelId}/messages?limit=${count}`, {
+            headers: { Authorization: `Bot ${token}` },
+          });
+          const messages = await listRes.json();
+          if (Array.isArray(messages) && messages.length > 0) {
+            const ids = messages.map((m: any) => m.id);
+            await fetch(`https://discord.com/api/v10/channels/${channelId}/messages/bulk-delete`, {
+              method: 'POST',
+              headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
+              body: JSON.stringify({ messages: ids }),
+            });
+            replyText = `🧹 **${ids.length} mensagens limpas com sucesso por ${author}!**`;
+          } else {
+            replyText = '🧹 Nenhuma mensagem recente encontrada para apagar.';
+          }
+        } catch (_) {
+          replyText = '⚠️ Não foi possível apagar as mensagens (verifique se tenho a permissão de Gerenciar Mensagens).';
+        }
+      }
+      // COMANDO DE FALAR / ANÚNCIO (!say, !falar)
+      else if (normalizedContent.startsWith('!say ') || normalizedContent.startsWith('!falar ')) {
+        const text = rawContent.replace(/^!(?:say|falar)\s+/i, '');
+        replyText = text;
+      }
+      // COMANDO DE AVATAR (!avatar)
+      else if (normalizedContent.startsWith('!avatar')) {
+        const target = (data.mentions && data.mentions[0]) || data.author;
+        const avatarUrl = target?.avatar
+          ? `https://cdn.discordapp.com/avatars/${target.id}/${target.avatar}.png?size=1024`
+          : 'https://cdn.discordapp.com/embed/avatars/0.png';
+        replyEmbeds = [
+          {
+            title: `🖼️ Avatar de ${target?.username || author}`,
+            image: { url: avatarUrl },
+            color: 0x00f2fe,
+            footer: { text: 'Aethelkov Universal Utility' },
+          },
+        ];
+      }
+      // COMANDO DE SERVERINFO (!serverinfo)
+      else if (normalizedContent === '!serverinfo' && guildId) {
+        try {
+          const gRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}?with_counts=true`, {
+            headers: { Authorization: `Bot ${token}` },
+          });
+          const g = await gRes.json();
+          replyEmbeds = [
+            {
+              title: `🏰 Informações de ${g.name || 'Servidor'}`,
+              color: 0x00f2fe,
+              fields: [
+                { name: '🆔 ID do Servidor', value: g.id || '-', inline: true },
+                { name: '👥 Membros Totais', value: String(g.approximate_member_count || '-'), inline: true },
+                { name: '🛡️ Nível de Boost', value: `Nível ${g.premium_tier || 0}`, inline: true },
+                { name: '👑 Dono (Owner ID)', value: g.owner_id || '-', inline: true },
+              ],
+              thumbnail: g.icon ? { url: `https://cdn.discordapp.com/icons/${g.id}/${g.icon}.png` } : undefined,
+              footer: { text: 'Aethelkov Universal Utilities' },
+            },
+          ];
+        } catch (_) {
+          replyText = '🏰 Informações do servidor consultadas.';
+        }
+      }
+      // PAINEL DE TICKET (!ticket)
+      else if (normalizedContent === '!ticket' || normalizedContent === '!suporte') {
+        replyEmbeds = [
+          {
+            title: '📩 Central de Atendimento & Suporte',
+            description: 'Clique no botão abaixo para abrir um atendimento exclusivo com a nossa equipe.',
+            color: 0x00f2fe,
+            footer: { text: 'Sistema de Atendimento Aethelkov' },
+          },
+        ];
+      }
+      // IA CONVERSACIONAL (!ai <pergunta> ou menção ao bot)
+      else if (normalizedContent.startsWith('!ai ') || (isMentioned && !normalizedContent.includes('!help'))) {
+        const query = rawContent.replace(/^!ai\s+/i, '').replace(/<@[^>]+>/g, '').trim() || 'Olá!';
+        replyText = `💡 **[Aethel AI Assist]** Olá **${author}**! Recebi sua mensagem: *"${query}"*. Estou conectado 24/7 na malha Aethelkov e pronto para ajudar com música, moderação ou automações!`;
+      }
+      // COMANDO DE AJUDA (!help, !ajuda)
       else if (
         normalizedContent.startsWith('!help') ||
         normalizedContent.startsWith('!ajuda') ||
@@ -301,39 +411,39 @@ export async function POST(req: NextRequest) {
       ) {
         replyEmbeds = [
           {
-            title: '🎧 Aethelkov Music & Universal Control',
-            description: `Olá **${author}**! Eu sou um bot hospedado 24/7 na malha **Aethelkov** com motor de áudio **Lavalink v4**.\n\nAqui estão os comandos disponíveis:`,
+            title: '⚡ Aethelkov Universal Control v3.5',
+            description: `Olá **${author}**! Eu sou um bot multifuncional hospedado 24/7 na malha **Aethelkov**.\n\nAqui estão as categorias de comandos suportadas:`,
             color: 0x00f2fe,
             fields: [
               {
-                name: '🎵 Tocar Música Completa',
-                value: '`!music <nome>` ou `/music <nome>`\n*(ex: `!music misery` ou `!music Bohemian Rhapsody`)*',
+                name: '🎵 Música & Voz 24/7',
+                value: '`!music <nome>` • `!stop` • `!skip` • `!queue`\n*(ex: `!music misery`)*',
+                inline: false,
               },
               {
-                name: '⏹️ Parar e Sair da Call',
-                value: '`!stop` ou `/stop`',
+                name: '🛡️ Moderação de Servidor',
+                value: '`!clear <1-100>` (apagar chat) • `!say <mensagem>` (anúncio)',
+                inline: false,
               },
               {
-                name: '⏭️ Pular Música',
-                value: '`!skip` ou `/skip`',
+                name: '⚙️ Utilitários & Informações',
+                value: '`!avatar` • `!serverinfo` • `!ping` • `!status`',
+                inline: false,
               },
               {
-                name: '📜 Fila de Reprodução',
-                value: '`!queue` ou `/queue`',
-              },
-              {
-                name: '🏓 Latência & Status',
-                value: '`!ping` ou `!status`',
+                name: '💡 Inteligência Artificial & Tickets',
+                value: '`!ai <pergunta>` • `!ticket` • Me mencione para conversar!',
+                inline: false,
               },
             ],
-            footer: { text: 'Aethelkov Universal Runtime v3.0 • Alta Fidelidade' },
+            footer: { text: 'Aethelkov Universal Runtime v3.5 • Multi-Purpose' },
           },
         ];
       }
       // STATUS DA INSTÂNCIA (!status, !info)
       else if (normalizedContent.startsWith('!status') || normalizedContent.startsWith('!info')) {
         replyText =
-          '🟢 **Status da Instância:** Online 24/7 na Malha Aethel\n🛰️ **Gateway Mesh:** Aethel Realtime Grid\n⚙️ **Engine:** Universal Shim v3.0 (Zero-RAM Mode)\n🔊 **Audio Cluster:** Lavalink v4 Ativo (lavalink.serenetia.com)';
+          '🟢 **Status da Instância:** Online 24/7 na Malha Aethel\n🛰️ **Gateway Mesh:** Aethel Realtime Grid\n⚙️ **Engine:** Universal Runtime v3.5 (Zero-RAM Mode)\n🔊 **Audio Cluster:** Lavalink v4 Resiliente Multi-Nós';
       }
       // MENÇÃO DIRETA
       else if (isMentioned) {

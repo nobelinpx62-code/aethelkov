@@ -7,9 +7,10 @@ const INTERNAL_SECRET = process.env.AETHEL_INTERNAL_SECRET || 'aethel-secret-gri
 
 // Cluster de nós Lavalink v4 com failover automático
 const LAVALINK_NODES = [
-  { host: 'lavalink.jirayu.net', port: 443, password: 'youshallnotpass', secure: true },
-  { host: 'lava-v4.millohost.my.id', port: 443, password: 'https://discord.gg/mjS5J2K3ep', secure: true },
   { host: 'lavalink-v4.triniumhost.com', port: 443, password: 'free', secure: true },
+  { host: 'lavalink.serenetia.com', port: 443, password: 'BatuManaBisa', secure: true },
+  { host: 'lava-v4.millohost.my.id', port: 443, password: 'https://discord.gg/mjS5J2K3ep', secure: true },
+  { host: 'lavalink.jirayu.net', port: 443, password: 'youshallnotpass', secure: true },
 ];
 
 async function searchLavalinkTrack(query: string) {

@@ -53,9 +53,10 @@ const SHARD_OFFSET = parseInt(process.env.AETHEL_SHARD_OFFSET || '${offset}', 10
 const SHARD_LIMIT = parseInt(process.env.AETHEL_SHARD_LIMIT || '${limit}', 10);
 
 const LAVALINK_NODES = [
-  { host: 'lavalink.jirayu.net', port: 443, pass: 'youshallnotpass', secure: true },
-  { host: 'lava-v4.millohost.my.id', port: 443, pass: 'https://discord.gg/mjS5J2K3ep', secure: true },
   { host: 'lavalink-v4.triniumhost.com', port: 443, pass: 'free', secure: true },
+  { host: 'lavalink.serenetia.com', port: 443, pass: 'BatuManaBisa', secure: true },
+  { host: 'lava-v4.millohost.my.id', port: 443, pass: 'https://discord.gg/mjS5J2K3ep', secure: true },
+  { host: 'lavalink.jirayu.net', port: 443, pass: 'youshallnotpass', secure: true },
 ];
 let activeNodeIdx = 0;
 
@@ -443,9 +444,10 @@ const WebSocket = require('ws');
 const TOKEN = process.env.DISCORD_TOKEN;
 
 const LAVALINK_NODES = [
-  { host: 'lavalink.jirayu.net', port: 443, pass: 'youshallnotpass', secure: true },
-  { host: 'lava-v4.millohost.my.id', port: 443, pass: 'https://discord.gg/mjS5J2K3ep', secure: true },
   { host: 'lavalink-v4.triniumhost.com', port: 443, pass: 'free', secure: true },
+  { host: 'lavalink.serenetia.com', port: 443, pass: 'BatuManaBisa', secure: true },
+  { host: 'lava-v4.millohost.my.id', port: 443, pass: 'https://discord.gg/mjS5J2K3ep', secure: true },
+  { host: 'lavalink.jirayu.net', port: 443, pass: 'youshallnotpass', secure: true },
 ];
 let activeNodeIdx = 0;
 

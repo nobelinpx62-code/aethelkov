@@ -13,6 +13,7 @@ import { LoginView } from '@/components/LoginView';
 import { GiftCelebrationModal } from '@/components/GiftCelebrationModal';
 import { UserProfileModal } from '@/components/UserProfileModal';
 import { AethelSettingsView } from '@/components/AethelSettingsView';
+import { PlansView } from '@/components/PlansView';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -37,7 +38,7 @@ export default function DashboardPage() {
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
   const focusedBot = bots.find((b) => b.id === focusedBotId) || null;
-  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'settings'>('overview');
+  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'plans' | 'settings'>('overview');
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -326,6 +327,9 @@ export default function DashboardPage() {
                 onRefresh={fetchBotsAndStats}
                 onDeleteBot={handleDeleteBot}
               />
+            ) : activeNavTab === 'plans' ? (
+              /* Aba de Planos, Recursos e Assinaturas */
+              <PlansView currentUser={currentUser} onOpenDeploy={() => setIsDeployOpen(true)} />
             ) : activeNavTab === 'settings' ? (
               /* Aba de Configurações, Chave de API, Documentação, Termos e Marca */
               <AethelSettingsView currentUser={currentUser} />

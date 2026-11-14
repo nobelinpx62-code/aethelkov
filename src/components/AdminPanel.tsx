@@ -54,6 +54,7 @@ import {
   PromoCode, 
   UserGift 
 } from '@/lib/promoService';
+import { PlansView } from '@/components/PlansView';
 
 interface DiscloudAccount {
   id: string;
@@ -93,7 +94,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onToggleBotStatus,
 }) => {
   // Navegação por Abas no Painel Admin
-  const [activeTab, setActiveTab] = useState<'nodes' | 'instances' | 'generator' | 'discloud' | 'promos' | 'settings'>('nodes');
+  const [activeTab, setActiveTab] = useState<'nodes' | 'instances' | 'generator' | 'plans' | 'discloud' | 'promos' | 'settings'>('nodes');
 
   // Estados de Promo Codes e Presentes de RAM
   const [promoCodesList, setPromoCodesList] = useState<PromoCode[]>([]);
@@ -599,6 +600,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
         >
           <Volume2 className="w-3.5 h-3.5 text-indigo-400" />
           <span>Gerador (.ZIP) 🔊</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('plans')}
+          className={`rounded-full px-4 py-2 font-medium transition-all flex items-center gap-2 shrink-0 ${
+            activeTab === 'plans'
+              ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+              : 'text-neutral-400 hover:text-white'
+          }`}
+        >
+          <Zap className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Planos & Preços 💎</span>
         </button>
 
         <button
@@ -1113,6 +1126,13 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               </div>
             </div>
           )}
+        </section>
+      )}
+
+      {/* CONTEÚDO DA ABA PLANOS & PREÇOS */}
+      {activeTab === 'plans' && (
+        <section className="animate-fadeIn">
+          <PlansView />
         </section>
       )}
 

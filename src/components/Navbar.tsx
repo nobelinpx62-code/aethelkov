@@ -23,8 +23,8 @@ interface NavbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onTriggerAdmin: () => void;
-  activeNavTab: 'overview' | 'instances' | 'settings';
-  onSelectNavTab: (tab: 'overview' | 'instances' | 'settings') => void;
+  activeNavTab: 'overview' | 'instances' | 'plans' | 'settings';
+  onSelectNavTab: (tab: 'overview' | 'instances' | 'plans' | 'settings') => void;
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
@@ -117,6 +117,19 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 Instâncias
+              </button>
+              <button
+                onClick={() => onSelectNavTab('plans')}
+                className={`rounded-full px-4 py-1.5 font-medium transition-all flex items-center gap-1.5 ${
+                  activeNavTab === 'plans'
+                    ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <span>Planos</span>
+                <span className="px-1.5 py-0.5 rounded-full bg-cyan-500/20 text-[9px] text-cyan-300 font-bold border border-cyan-400/30">
+                  PRO
+                </span>
               </button>
               <button
                 onClick={() => onSelectNavTab('settings')}
@@ -397,6 +410,27 @@ export const Navbar: React.FC<NavbarProps> = ({
                     <span>Instâncias de Bots</span>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectNavTab('plans');
+                    setIsDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
+                    activeNavTab === 'plans'
+                      ? 'bg-white/15 text-white font-semibold border border-white/20 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Zap className="w-4 h-4 text-amber-400" />
+                    <span>Planos & Assinaturas</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-cyan-500/20 text-[10px] text-cyan-300 font-bold border border-cyan-400/30">
+                    PRO
+                  </span>
                 </button>
 
                 <button

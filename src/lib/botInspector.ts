@@ -8,10 +8,15 @@ export interface InspectedBotData {
   mainFile: string;
   ramLimitMb: number;
   configType: 'aethel' | 'discloud';
+  language: 'python' | 'nodejs' | 'java' | 'other';
+  hasDiscloudConfig: boolean;
+  generatedDiscloudConfig: string;
+  detectedEnvVars: Record<string, string>;
   detectionDetails: {
     platformReason: string;
     tokenSource: string | null;
     dependencies: string[];
+    detectedFeatures: string[];
   };
 }
 
@@ -57,11 +62,66 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
   let tokenSource: string | null = manualToken ? 'Manual' : null;
   let detectedPlatform: BotPlatform = 'DISCORD';
   let platformReason = 'Padrão da plataforma';
+  let detectedLanguage: 'python' | 'nodejs' | 'java' | 'other' = 'nodejs';
   const foundDependencies: string[] = [];
+  const detectedFeatures: string[] = [];
+  const detectedEnvVars: Record<string, string> = {};
+
+  // Contagem de tipos de arquivos para determinar a linguagem
+  let pythonFileCount = 0;
+  let jsFileCount = 0;
+  let javaFileCount = 0;
+  const pythonMainCandidates: string[] = [];
+  const jsMainCandidates: string[] = [];
+  const javaMainCandidates: string[] = [];
+
+  zip.forEach((path, entry) => {
+    if (entry.dir) return;
+    const lower = path.toLowerCase();
+    if (lower.includes('node_modules') || lower.includes('.git') || lower.includes('__pycache__')) return;
+
+    if (lower.endsWith('.py')) {
+      pythonFileCount++;
+      const base = path.split('/').pop() || '';
+      if (['main.py', 'bot.py', 'app.py', 'run.py', 'client.py', 'index.py'].includes(base.toLowerCase())) {
+        pythonMainCandidates.push(path);
+      }
+    } else if (lower.endsWith('.js') || lower.endsWith('.ts') || lower.endsWith('.mjs') || lower.endsWith('.cjs')) {
+      jsFileCount++;
+      const base = path.split('/').pop() || '';
+      if (['index.js', 'bot.js', 'main.js', 'app.js', 'server.js', 'index.ts', 'bot.ts'].includes(base.toLowerCase())) {
+        jsMainCandidates.push(path);
+      }
+    } else if (lower.endsWith('.jar')) {
+      javaFileCount++;
+      javaMainCandidates.push(path);
+    }
+  });
+
+  const hasRequirementsTxt = !!zip.file('requirements.txt') || zip.file(/^.*\/requirements\.txt$/i).length > 0;
+  const hasPackageJson = !!zip.file('package.json') || zip.file(/^.*\/package\.json$/i).length > 0;
+
+  // Determina a linguagem predominante
+  if (pythonFileCount > 0 || hasRequirementsTxt) {
+    if (pythonFileCount >= jsFileCount) {
+      detectedLanguage = 'python';
+      mainFile = pythonMainCandidates[0] || 'main.py';
+    } else {
+      detectedLanguage = 'nodejs';
+      mainFile = jsMainCandidates[0] || 'index.js';
+    }
+  } else if (javaFileCount > 0) {
+    detectedLanguage = 'java';
+    mainFile = javaMainCandidates[0] || 'bot.jar';
+  } else if (jsFileCount > 0 || hasPackageJson) {
+    detectedLanguage = 'nodejs';
+    mainFile = jsMainCandidates[0] || 'index.js';
+  }
 
   // 1. Procura por aethel.config ou discloud.config
   const aethelEntry = zip.file('aethel.config') || zip.file(/^.*\/aethel\.config$/i)[0];
   const discloudEntry = zip.file('discloud.config') || zip.file(/^.*\/discloud\.config$/i)[0];
+  const hasDiscloudConfig = !!discloudEntry;
   let configRaw: string | null = null;
 
   if (aethelEntry) {
@@ -104,6 +164,13 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     }
   }
 
+  // Se mainFile termina com .py, assegura linguagem Python
+  if (mainFile.endsWith('.py')) {
+    detectedLanguage = 'python';
+  } else if (mainFile.endsWith('.jar')) {
+    detectedLanguage = 'java';
+  }
+
   // 2. Inspeciona package.json (se existir)
   const packageEntry = zip.file('package.json') || zip.file(/^.*\/package\.json$/i)[0];
   if (packageEntry) {
@@ -113,7 +180,7 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
       if (pkgJson.name && detectedName === 'meu-bot') {
         detectedName = pkgJson.name;
       }
-      if (pkgJson.main && mainFile === 'index.js' && !configRaw) {
+      if (pkgJson.main && !configRaw) {
         mainFile = pkgJson.main;
       }
 
@@ -132,16 +199,54 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
           detectedPlatform = 'DISCORD';
           platformReason = `Biblioteca Discord "${dep}" detectada no package.json`;
         }
+
+        if (lowerDep.includes('mercadopago') || lowerDep.includes('asaas') || lowerDep.includes('pix')) {
+          detectedFeatures.push('Vendas / Pagamentos Pix');
+        }
+        if (lowerDep.includes('openai') || lowerDep.includes('@google/generative-ai') || lowerDep.includes('@anthropic')) {
+          detectedFeatures.push('Inteligência Artificial');
+        }
+        if (lowerDep.includes('lavalink') || lowerDep.includes('poru') || lowerDep.includes('shoukaku') || lowerDep.includes('erela')) {
+          detectedFeatures.push('Música / Lavalink');
+        }
       }
     } catch {
       // Ignora erro de parse do package.json
     }
   }
 
+  // 2b. Inspeciona requirements.txt (se existir)
+  const reqEntry = zip.file('requirements.txt') || zip.file(/^.*\/requirements\.txt$/i)[0];
+  if (reqEntry) {
+    try {
+      const reqStr = await reqEntry.async('string');
+      const lines = reqStr.split(/\r?\n/);
+      for (const line of lines) {
+        const dep = line.trim().split(/[=><~]/)[0].trim();
+        if (!dep || dep.startsWith('#')) continue;
+        foundDependencies.push(dep);
+        const lowerDep = dep.toLowerCase();
+        if (lowerDep.includes('discord')) {
+          detectedPlatform = 'DISCORD';
+          platformReason = `Biblioteca Python "${dep}" em requirements.txt`;
+        } else if (lowerDep.includes('telegram') || lowerDep.includes('telebot') || lowerDep.includes('aiogram')) {
+          detectedPlatform = 'TELEGRAM';
+          platformReason = `Biblioteca Python "${dep}" em requirements.txt`;
+        }
+        if (lowerDep.includes('mercadopago') || lowerDep.includes('pix')) {
+          detectedFeatures.push('Vendas / Pagamentos Pix');
+        }
+        if (lowerDep.includes('openai') || lowerDep.includes('google-generativeai')) {
+          detectedFeatures.push('Inteligência Artificial');
+        }
+      }
+    } catch (_) {}
+  }
+
   // 3. Inspeciona arquivos de ambiente (.env, .env.production, .env.local)
-  if (!detectedToken) {
-    const envEntries = zip.file(/^\.env(\.[a-zA-Z0-9_-]+)?$/i);
-    for (const envEntry of envEntries) {
+  const envEntries = zip.file(/^\.env(\.[a-zA-Z0-9_-]+)?$/i);
+  for (const envEntry of envEntries) {
+    try {
       const envContent = await envEntry.async('string');
       const envLines = envContent.split(/\r?\n/);
       for (const line of envLines) {
@@ -152,7 +257,12 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
         const key = trimmed.slice(0, sep).trim().toUpperCase();
         const val = trimmed.slice(sep + 1).trim().replace(/^["']|["']$/g, '');
 
+        if (key && val) {
+          detectedEnvVars[key] = val;
+        }
+
         if (
+          !detectedToken &&
           [
             'TOKEN',
             'BOT_TOKEN',
@@ -166,11 +276,9 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
         ) {
           detectedToken = val;
           tokenSource = envEntry.name;
-          break;
         }
       }
-      if (detectedToken) break;
-    }
+    } catch (_) {}
   }
 
   // 4. Varredura profunda nos arquivos de código-fonte (.js, .ts, .py)
@@ -276,6 +384,18 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     }
   }
 
+  // 6. Gera configuração Discloud padrão caso não exista
+  const cleanName = detectedName.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 30) || 'aethel-bot';
+  const generatedDiscloudConfig = [
+    `NAME=${cleanName}`,
+    `TYPE=bot`,
+    `MAIN=${mainFile}`,
+    `RAM=${ramLimitMb}`,
+    `AUTORESTART=true`,
+    `VERSION=latest`,
+    `APT=tools`,
+  ].join('\n') + '\n';
+
   return {
     name: detectedName,
     platform: detectedPlatform,
@@ -283,10 +403,15 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     mainFile,
     ramLimitMb,
     configType,
+    language: detectedLanguage,
+    hasDiscloudConfig,
+    generatedDiscloudConfig,
+    detectedEnvVars,
     detectionDetails: {
       platformReason,
       tokenSource,
-      dependencies: foundDependencies,
+      dependencies: Array.from(new Set(foundDependencies)),
+      detectedFeatures: Array.from(new Set(detectedFeatures)),
     },
   };
 }

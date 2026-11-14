@@ -12,7 +12,8 @@ import {
   CheckCircle2,
   Sparkles,
   Key,
-  ShieldCheck
+  ShieldCheck,
+  Trash2
 } from 'lucide-react';
 import { BotPlatform, AethelBot } from '@/lib/types';
 import { inspectZipBot, detectPlatformFromToken, InspectedBotData } from '@/lib/botInspector';
@@ -43,6 +44,10 @@ export const DeployModal: React.FC<DeployModalProps> = ({
   const [inspectedData, setInspectedData] = useState<InspectedBotData | null>(null);
   const [isInspecting, setIsInspecting] = useState(false);
   const [fileInputKey, setFileInputKey] = useState(0);
+  const [customEnv, setCustomEnv] = useState<Record<string, string>>({});
+  const [newEnvKey, setNewEnvKey] = useState('');
+  const [newEnvVal, setNewEnvVal] = useState('');
+  const [showEnvSection, setShowEnvSection] = useState(false);
 
   // Manual States
   const [name, setName] = useState('');
@@ -67,6 +72,10 @@ export const DeployModal: React.FC<DeployModalProps> = ({
     setUploadError(null);
     setInspectedData(null);
     setIsInspecting(false);
+    setCustomEnv({});
+    setNewEnvKey('');
+    setNewEnvVal('');
+    setShowEnvSection(false);
     setName('');
     setPlatform('DISCORD');
     setToken('');
@@ -113,6 +122,9 @@ export const DeployModal: React.FC<DeployModalProps> = ({
       if (inspected.token && !zipToken) {
         setZipToken(inspected.token);
       }
+      if (inspected.detectedEnvVars && Object.keys(inspected.detectedEnvVars).length > 0) {
+        setCustomEnv((prev) => ({ ...inspected.detectedEnvVars, ...prev }));
+      }
     } catch (err: any) {
       console.warn('[DeployModal] Falha ao inspecionar ZIP:', err);
     } finally {
@@ -135,6 +147,9 @@ export const DeployModal: React.FC<DeployModalProps> = ({
       formData.append('file', zipFile);
       if (zipToken.trim()) {
         formData.append('token', zipToken.trim());
+      }
+      if (Object.keys(customEnv).length > 0) {
+        formData.append('env', JSON.stringify(customEnv));
       }
 
       const res = await fetch('/api/upload', {
@@ -365,7 +380,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                     </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {/* Plataforma Detectada */}
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2.5">
                       {inspectedData.platform === 'TELEGRAM' ? (
@@ -380,7 +395,20 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                       <div>
                         <span className="text-[10px] text-neutral-400 block">Plataforma</span>
                         <span className={`font-bold ${inspectedData.platform === 'TELEGRAM' ? 'text-cyan-300' : 'text-emerald-400'}`}>
-                          {inspectedData.platform === 'TELEGRAM' ? '🤖 Telegram Bot' : '🤖 Discord Bot'}
+                          {inspectedData.platform === 'TELEGRAM' ? 'Telegram' : 'Discord'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Linguagem Detectada */}
+                    <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2.5">
+                      <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-amber-500/20 text-amber-400 font-bold">
+                        {inspectedData.language === 'python' ? '🐍' : inspectedData.language === 'java' ? '☕' : '🟨'}
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-neutral-400 block">Linguagem</span>
+                        <span className="font-bold text-amber-300 uppercase">
+                          {inspectedData.language === 'python' ? 'Python' : inspectedData.language === 'java' ? 'Java' : 'Node.js'}
                         </span>
                       </div>
                     </div>
@@ -404,9 +432,25 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                     </div>
                   </div>
 
+                  {/* Badges de Recursos Detectados */}
+                  {inspectedData.detectionDetails.detectedFeatures?.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 pt-1">
+                      {inspectedData.detectionDetails.detectedFeatures.map((feat, idx) => (
+                        <span key={idx} className="px-2 py-0.5 rounded-lg bg-cyan-500/15 border border-cyan-400/30 text-[10px] text-cyan-300 font-semibold">
+                          ✨ {feat}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
                   <div className="text-[11px] text-neutral-400 space-y-0.5 pt-1">
                     <div>
-                      <strong>Nome:</strong> <span className="text-white">{inspectedData.name}</span> • <strong>Main:</strong> <span className="text-white">{inspectedData.mainFile}</span>
+                      <strong>Nome:</strong> <span className="text-white">{inspectedData.name}</span> • <strong>Arquivo Principal:</strong> <span className="text-white">{inspectedData.mainFile}</span>
+                    </div>
+                    <div className="text-[10px] text-emerald-400">
+                      {inspectedData.hasDiscloudConfig
+                        ? '✅ discloud.config detectado no pacote.'
+                        : '⚡ discloud.config será gerado automaticamente pela plataforma.'}
                     </div>
                     <div className="text-[10px] text-cyan-400">
                       ℹ️ {inspectedData.detectionDetails.platformReason}
@@ -435,6 +479,80 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                 <span className="text-[10px] text-neutral-500 font-mono mt-1 block">
                   Se o token já estiver no código (.js, .py, grammy, telegraf ou .env), o sistema detecta sozinho!
                 </span>
+              </div>
+
+              {/* Seção de Variáveis de Ambiente (.env) para APIs, Vendas Pix, OpenAI, etc. */}
+              <div className="p-3.5 rounded-2xl bg-black/40 border border-white/10 space-y-2.5 font-mono text-xs">
+                <div 
+                  onClick={() => setShowEnvSection(!showEnvSection)} 
+                  className="flex items-center justify-between cursor-pointer select-none text-neutral-300 hover:text-white"
+                >
+                  <span className="font-semibold flex items-center gap-2">
+                    <Key className="w-3.5 h-3.5 text-cyan-400" />
+                    <span>Variáveis de Ambiente (.env) • APIs, Pix, OpenAI ({Object.keys(customEnv).length})</span>
+                  </span>
+                  <span className="text-[11px] text-cyan-400 font-bold">{showEnvSection ? '▲ Ocultar' : '▼ Configurar'}</span>
+                </div>
+
+                {showEnvSection && (
+                  <div className="space-y-2 pt-2 border-t border-white/10 animate-fadeIn">
+                    <p className="text-[10px] text-neutral-400">
+                      Configure tokens de terceiros (ex: <code>OPENAI_API_KEY</code>, <code>MERCADOPAGO_TOKEN</code>, etc.).
+                    </p>
+
+                    {/* Lista de variáveis configuradas */}
+                    {Object.entries(customEnv).map(([k, v]) => (
+                      <div key={k} className="flex items-center justify-between p-2 rounded-xl bg-white/5 border border-white/5 text-[11px]">
+                        <span className="text-cyan-300 font-semibold truncate max-w-[45%]">{k}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="text-neutral-400 truncate max-w-[120px] font-mono">••••••••••</span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const updated = { ...customEnv };
+                              delete updated[k];
+                              setCustomEnv(updated);
+                            }}
+                            className="p-1 text-rose-400 hover:text-rose-300 rounded"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+
+                    {/* Formulário para adicionar nova variável */}
+                    <div className="flex items-center gap-2 pt-1">
+                      <input
+                        type="text"
+                        placeholder="NOME_DA_VARIAVEL"
+                        value={newEnvKey}
+                        onChange={(e) => setNewEnvKey(e.target.value.toUpperCase().replace(/\s+/g, '_'))}
+                        className="flex-1 px-2.5 py-1.5 rounded-xl bg-black/60 border border-white/10 text-white text-[11px] font-mono focus:border-cyan-400 focus:outline-none"
+                      />
+                      <input
+                        type="text"
+                        placeholder="Valor do segredo"
+                        value={newEnvVal}
+                        onChange={(e) => setNewEnvVal(e.target.value)}
+                        className="flex-1 px-2.5 py-1.5 rounded-xl bg-black/60 border border-white/10 text-white text-[11px] font-mono focus:border-cyan-400 focus:outline-none"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (newEnvKey.trim()) {
+                            setCustomEnv((prev) => ({ ...prev, [newEnvKey.trim()]: newEnvVal.trim() }));
+                            setNewEnvKey('');
+                            setNewEnvVal('');
+                          }
+                        }}
+                        className="px-3 py-1.5 rounded-xl bg-cyan-500/20 text-cyan-300 border border-cyan-400/30 text-[11px] font-semibold hover:bg-cyan-500/30"
+                      >
+                        + Adicionar
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="pt-2 flex justify-end gap-3">

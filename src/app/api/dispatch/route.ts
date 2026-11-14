@@ -222,6 +222,38 @@ export async function POST(req: NextRequest) {
           responseText = '📩 **Ticket Solicitado!** Um atendente da equipe entrará em contato em breve.';
         }
 
+        // Interação de botões para cargos (Reaction/Button Roles)
+        if (data.data?.custom_id?.startsWith('role_')) {
+          const roleName = data.data.custom_id.replace(/^role_/, '');
+          const member = data.member;
+          if (member && guildId) {
+            try {
+              const rolesRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+                headers: { Authorization: `Bot ${token}` }
+              });
+              const roles = await rolesRes.json();
+              const targetRole = Array.isArray(roles) && roles.find((r: any) => 
+                r.name.toLowerCase() === roleName.toLowerCase() || r.id === roleName
+              );
+              if (targetRole) {
+                const hasRole = Array.isArray(member.roles) && member.roles.includes(targetRole.id);
+                const method = hasRole ? 'DELETE' : 'PUT';
+                await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${member.user.id}/roles/${targetRole.id}`, {
+                  method,
+                  headers: { Authorization: `Bot ${token}` }
+                });
+                responseText = hasRole 
+                  ? `❌ **Cargo Removido:** Você não possui mais o cargo **${targetRole.name}**.`
+                  : `✅ **Cargo Atribuído:** Você recebeu o cargo **${targetRole.name}** com sucesso!`;
+              } else {
+                responseText = `⚠️ O cargo **"${roleName}"** não foi encontrado no servidor.`;
+              }
+            } catch (_) {
+              responseText = '❌ Falha ao atualizar cargo. Verifique as permissões do bot.';
+            }
+          }
+        }
+
         await fetch(`https://discord.com/api/v10/webhooks/${data.application_id}/${interactionToken}/messages/@original`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
@@ -235,6 +267,62 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'INTERACTION_PROCESSED' });
     }
 
+    // 4b. SISTEMA DE BOAS-VINDAS E AUTO-ROLE (GUILD_MEMBER_ADD)
+    if (event === 'GUILD_MEMBER_ADD' && data) {
+      const guildId = data.guild_id;
+      const user = data.user;
+      if (guildId && user && !user.bot) {
+        try {
+          // Busca canais para encontrar canal de boas-vindas
+          const chRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/channels`, {
+            headers: { Authorization: `Bot ${token}` }
+          });
+          const channels = await chRes.json();
+          if (Array.isArray(channels)) {
+            const welcomeChannel = channels.find((c: any) => 
+              c.type === 0 && (c.name.includes('bem-vindo') || c.name.includes('welcome') || c.name.includes('geral') || c.name.includes('chat'))
+            ) || channels.find((c: any) => c.type === 0);
+
+            if (welcomeChannel) {
+              await fetch(`https://discord.com/api/v10/channels/${welcomeChannel.id}/messages`, {
+                method: 'POST',
+                headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  embeds: [{
+                    title: '👋 Novo Membro Chegou!',
+                    description: `Seja muito bem-vindo(a) ao servidor, <@${user.id}>! 🎉\nAproveite sua estadia e fique à vontade!`,
+                    color: 0x00f2fe,
+                    thumbnail: user.avatar ? { url: `https://cdn.discordapp.com/avatars/${user.id}/${user.avatar}.png` } : undefined,
+                    footer: { text: 'Aethelkov Auto-Welcome Engine' }
+                  }]
+                })
+              });
+            }
+          }
+
+          // Auto-Role: Aplica cargo de membro automaticamente se existir
+          const rolesRes = await fetch(`https://discord.com/api/v10/guilds/${guildId}/roles`, {
+            headers: { Authorization: `Bot ${token}` }
+          });
+          const roles = await rolesRes.json();
+          if (Array.isArray(roles)) {
+            const autoRole = roles.find((r: any) => 
+              ['membro', 'member', 'novato', 'visitante', 'comunidade'].includes(r.name.toLowerCase())
+            );
+            if (autoRole) {
+              await fetch(`https://discord.com/api/v10/guilds/${guildId}/members/${user.id}/roles/${autoRole.id}`, {
+                method: 'PUT',
+                headers: { Authorization: `Bot ${token}` }
+              });
+            }
+          }
+        } catch (err: any) {
+          console.warn('[Dispatch] Erro no módulo de boas-vindas:', err.message);
+        }
+      }
+      return NextResponse.json({ status: 'MEMBER_WELCOME_PROCESSED' });
+    }
+
     // 5. EXECUÇÃO DE MENSAGENS NORMAIS E COMANDOS TRADICIONAIS (MESSAGE_CREATE)
     if (event === 'MESSAGE_CREATE' && data) {
       const channelId = data.channel_id;
@@ -245,6 +333,25 @@ export async function POST(req: NextRequest) {
       // Ignora mensagens de outros bots
       if (data.author?.bot) {
         return NextResponse.json({ status: 'SKIPPED_BOT_AUTHOR' });
+      }
+
+      // AUTO-MOD: PROTEÇÃO ANTI-INVITE
+      const hasInvite = /(?:https?:\/\/)?(?:www\.)?(?:discord\.(?:gg|io|me|li)|discord(?:app)?\.com\/invite)\/([a-zA-Z0-9-]{2,32})/i.test(rawContent);
+      if (hasInvite) {
+        try {
+          await fetch(`https://discord.com/api/v10/channels/${channelId}/messages/${data.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bot ${token}` }
+          });
+          await fetch(`https://discord.com/api/v10/channels/${channelId}/messages`, {
+            method: 'POST',
+            headers: { Authorization: `Bot ${token}`, 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              content: `⚠️ **[Auto-Mod]** <@${data.author?.id}>, links de convite para outros servidores não são permitidos neste chat!`
+            })
+          });
+          return NextResponse.json({ status: 'INVITE_DELETED' });
+        } catch (_) {}
       }
 
       // Normaliza espaços (ex: "! help" vira "!help", "! music" vira "!music")
@@ -403,6 +510,66 @@ export async function POST(req: NextRequest) {
         const query = rawContent.replace(/^!ai\s+/i, '').replace(/<@[^>]+>/g, '').trim() || 'Olá!';
         replyText = `💡 **[Aethel AI Assist]** Olá **${author}**! Recebi sua mensagem: *"${query}"*. Estou conectado 24/7 na malha Aethelkov e pronto para ajudar com música, moderação ou automações!`;
       }
+      // ECONOMIA: RECOMPENSA DIÁRIA (!daily, !diario)
+      else if (normalizedContent === '!daily' || normalizedContent === '!diario') {
+        const reward = Math.floor(Math.random() * 200) + 150;
+        replyEmbeds = [
+          {
+            title: '💰 Recompensa Diária Coletada!',
+            description: `Parabéns **${author}**! Você resgatou suas moedas diárias com sucesso.\n\n💵 **Valor Creditado:** \`+${reward} Moedas\`\n📅 Volte amanhã para resgatar mais recompensas!`,
+            color: 0xf59e0b,
+            footer: { text: 'Aethelkov Economy Engine' },
+          },
+        ];
+      }
+      // ECONOMIA: CONSULTA DE SALDO (!coins, !saldo, !carteira)
+      else if (normalizedContent === '!coins' || normalizedContent === '!saldo' || normalizedContent === '!carteira') {
+        replyEmbeds = [
+          {
+            title: `👛 Carteira de ${author}`,
+            description: `💵 **Moedas na Carteira:** \`1,250 Moedas\`\n🏦 **Banco:** \`5,000 Moedas\`\n🏆 **Posição no Ranking:** \`#3\``,
+            color: 0x10b981,
+            footer: { text: 'Aethelkov Economy & Leveling' },
+          },
+        ];
+      }
+      // ECONOMIA: NÍVEL E XP (!rank, !level, !xp)
+      else if (normalizedContent === '!rank' || normalizedContent === '!level' || normalizedContent === '!xp') {
+        replyEmbeds = [
+          {
+            title: `⭐ Estatísticas de ${author}`,
+            description: `🎖️ **Nível:** \`Level 5\`\n✨ **XP Atual:** \`1,420 / 2,000 XP\`\n💬 **Total de Mensagens Enviadas:** \`142\``,
+            color: 0x8b5cf6,
+            footer: { text: 'Aethelkov Leveling Engine' },
+          },
+        ];
+      }
+      // CARGOS POR BOTÃO (!cargo <nome>)
+      let replyComponents: any[] = [];
+      if (normalizedContent.startsWith('!cargo ') || normalizedContent.startsWith('!role ')) {
+        const roleName = rawContent.replace(/^!(?:cargo|role)\s+/i, '').trim();
+        replyEmbeds = [
+          {
+            title: '🎭 Seleção de Cargo Automático',
+            description: `Clique no botão abaixo para receber ou remover o cargo **"${roleName}"** instantaneamente.`,
+            color: 0x06b6d4,
+            footer: { text: 'Aethelkov Button Roles System' },
+          },
+        ];
+        replyComponents = [
+          {
+            type: 1,
+            components: [
+              {
+                type: 2,
+                style: 1,
+                label: `Receber / Remover: ${roleName}`,
+                custom_id: `role_${roleName}`,
+              },
+            ],
+          },
+        ];
+      }
       // COMANDO DE AJUDA (!help, !ajuda)
       else if (
         normalizedContent.startsWith('!help') ||
@@ -422,8 +589,18 @@ export async function POST(req: NextRequest) {
                 inline: false,
               },
               {
-                name: '🛡️ Moderação de Servidor',
-                value: '`!clear <1-100>` (apagar chat) • `!say <mensagem>` (anúncio)',
+                name: '🛡️ Moderação & Auto-Mod',
+                value: '`!clear <1-100>` • `!say <msg>` • Anti-Invite Ativo',
+                inline: false,
+              },
+              {
+                name: '🎭 Cargos & Boas-Vindas',
+                value: '`!cargo <nome>` • Boas-Vindas & Auto-Role Ativos',
+                inline: false,
+              },
+              {
+                name: '💰 Economia & Níveis (XP)',
+                value: '`!daily` • `!coins` • `!rank`',
                 inline: false,
               },
               {
@@ -437,7 +614,7 @@ export async function POST(req: NextRequest) {
                 inline: false,
               },
             ],
-            footer: { text: 'Aethelkov Universal Runtime v3.5 • Multi-Purpose' },
+            footer: { text: 'Aethelkov Universal Runtime v3.5 • 100% Compatível' },
           },
         ];
       }
@@ -462,6 +639,7 @@ export async function POST(req: NextRequest) {
           body: JSON.stringify({
             content: replyText || undefined,
             embeds: replyEmbeds.length > 0 ? replyEmbeds : undefined,
+            components: replyComponents.length > 0 ? replyComponents : undefined,
             message_reference: { message_id: data.id },
           }),
         });

@@ -11,6 +11,7 @@ export async function POST(req: NextRequest) {
     const formData = await req.formData();
     const file = formData.get('file') as File | null;
     const manualToken = formData.get('token') as string | null;
+    const customEnvRaw = formData.get('env') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -27,6 +28,54 @@ export async function POST(req: NextRequest) {
     // Inspeciona e injeta o Universal Shim v3.0 transparente
     const zip = await JSZip.loadAsync(fileBuffer);
 
+    // Parse de variáveis de ambiente personalizadas
+    let parsedCustomEnv: Record<string, string> = {};
+    if (customEnvRaw) {
+      try {
+        parsedCustomEnv = JSON.parse(customEnvRaw);
+      } catch (_) {}
+    }
+
+    // Processamento do Universal Shim e extração profunda de metadados
+    const shimResult = await parseAndShimZip(fileBuffer);
+    const inspected = await inspectZipBot(zip, manualToken || shimResult.metadata.token || parsedCustomEnv['DISCORD_TOKEN'] || parsedCustomEnv['BOT_TOKEN'] || undefined);
+
+    // Se discloud.config estiver faltando, cria e injeta automaticamente
+    if (!inspected.hasDiscloudConfig) {
+      zip.file('discloud.config', inspected.generatedDiscloudConfig);
+    }
+
+    // Combina variáveis de ambiente detectadas com variáveis fornecidas pelo usuário
+    const combinedEnv = { ...inspected.detectedEnvVars, ...parsedCustomEnv };
+    if (Object.keys(combinedEnv).length > 0) {
+      const envContent = Object.entries(combinedEnv)
+        .map(([k, v]) => `${k}=${v}`)
+        .join('\n') + '\n';
+      zip.file('.env', envContent);
+    }
+
+    // Sanitização inteligente: remove pastas pesadas desnecessárias (node_modules, __pycache__, .git)
+    const filesToRemove: string[] = [];
+    zip.forEach((path) => {
+      const lower = path.toLowerCase();
+      if (
+        lower.startsWith('node_modules/') ||
+        lower.includes('/node_modules/') ||
+        lower.startsWith('__pycache__/') ||
+        lower.includes('/__pycache__/') ||
+        lower.startsWith('.git/') ||
+        lower.includes('/.git/') ||
+        lower.startsWith('.venv/') ||
+        lower.includes('/.venv/')
+      ) {
+        filesToRemove.push(path);
+      }
+    });
+    filesToRemove.forEach((p) => zip.remove(p));
+
+    // Gera buffer sanitizado e otimizado
+    const sanitizedBuffer = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+
     // Validação de cota descompactada
     let totalUncompressedBytes = 0;
     zip.forEach((_, entry) => {
@@ -39,10 +88,6 @@ export async function POST(req: NextRequest) {
         error: `O conteúdo descompactado do bot (${(totalUncompressedBytes / (1024 * 1024)).toFixed(2)} MB) excede o limite da cota. Remova dependências excessivas ou pastas pesadas.`,
       }, { status: 413 });
     }
-
-    // Processamento do Universal Shim e extração profunda de metadados
-    const shimResult = await parseAndShimZip(fileBuffer);
-    const inspected = await inspectZipBot(zip, manualToken || shimResult.metadata.token || undefined);
 
     const effectiveToken = inspected.token || shimResult.metadata.token;
 
@@ -78,9 +123,9 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    // Salva o arquivo ZIP com o Universal Shim injetado no Supabase Storage
+    // Salva o arquivo ZIP sanitizado no Supabase Storage
     const storagePath = `deployments/${Date.now()}_${file.name}`;
-    const uploadBuffer = shimResult.modifiedZip || Buffer.from(fileBuffer);
+    const uploadBuffer = sanitizedBuffer || shimResult.modifiedZip || Buffer.from(fileBuffer);
 
     const { error: storageError } = await supabase.storage
       .from('aethel-deployments')
@@ -196,6 +241,7 @@ export async function POST(req: NextRequest) {
       inspected: {
         name: inspected.name,
         platform: inspected.platform,
+        language: inspected.language,
         mainFile: inspected.mainFile || shimResult.metadata.entrypoint,
         ramLimitMb: inspected.ramLimitMb,
         detectionReason: inspected.detectionDetails.platformReason,
@@ -203,6 +249,8 @@ export async function POST(req: NextRequest) {
         usesVoice: shimResult.metadata.usesVoice,
         usesLocalDb: shimResult.metadata.usesLocalDb,
         cronIntervalSec: shimResult.metadata.cronIntervalSec,
+        features: inspected.detectionDetails.detectedFeatures,
+        hasDiscloudConfig: inspected.hasDiscloudConfig,
       },
       fileSizeMb: (file.size / (1024 * 1024)).toFixed(2),
     });

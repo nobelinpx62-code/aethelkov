@@ -1,9 +1,45 @@
 import { NextRequest, NextResponse } from 'next/server';
+import crypto from 'crypto';
 import { supabase } from '@/lib/supabase';
 
 export const dynamic = 'force-dynamic';
 
 const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || '';
+const MERCADOPAGO_WEBHOOK_SECRET = process.env.MERCADOPAGO_WEBHOOK_SECRET || '';
+
+/**
+ * Validação opcional da assinatura x-signature do Mercado Pago
+ */
+function verifySignature(req: NextRequest, dataId: string): boolean {
+  if (!MERCADOPAGO_WEBHOOK_SECRET) return true; // Se não configurado, segue com a consulta direta à API
+
+  const xSignature = req.headers.get('x-signature');
+  const xRequestId = req.headers.get('x-request-id');
+
+  if (!xSignature || !xRequestId || !dataId) return true;
+
+  try {
+    const parts = xSignature.split(',').reduce((acc: Record<string, string>, part) => {
+      const [key, value] = part.split('=');
+      if (key && value) acc[key.trim()] = value.trim();
+      return acc;
+    }, {});
+
+    const ts = parts['ts'];
+    const receivedHash = parts['v1'];
+    if (!ts || !receivedHash) return true;
+
+    const manifest = `id:${dataId};request-id:${xRequestId};ts:${ts};`;
+    const computedHash = crypto
+      .createHmac('sha256', MERCADOPAGO_WEBHOOK_SECRET)
+      .update(manifest)
+      .digest('hex');
+
+    return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(receivedHash, 'hex'));
+  } catch {
+    return true; // Fallback seguro
+  }
+}
 
 /**
  * POST /api/webhooks/mercadopago
@@ -20,6 +56,12 @@ export async function POST(req: NextRequest) {
 
     if (!id) {
       return NextResponse.json({ status: 'ignored', message: 'No ID found' });
+    }
+
+    // Valida assinatura se o header estiver presente
+    if (!verifySignature(req, String(id))) {
+      console.warn('[MercadoPago Webhook] Assinatura x-signature inválida para ID:', id);
+      return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
     }
 
     if (!MERCADOPAGO_ACCESS_TOKEN) {

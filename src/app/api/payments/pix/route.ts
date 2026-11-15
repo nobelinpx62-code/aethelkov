@@ -38,8 +38,8 @@ export async function POST(req: NextRequest) {
     const firstName = nameParts[0] || 'Cliente';
     const lastName = nameParts.slice(1).join(' ') || 'Aethel';
 
-    // Higieniza o external_reference (Orders API aceita apenas letras, números e hífens)
-    const safeUserId = (userId || 'anon').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+    // Higieniza o external_reference (mantém UUID completo de 36 caracteres)
+    const safeUserId = (userId || 'anon').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
     const extRef = `${planId}-${plan.ramMb}-${safeUserId}`;
     const idempotencyKey = `aethel-${planId}-${safeUserId}-${Date.now()}`;
 

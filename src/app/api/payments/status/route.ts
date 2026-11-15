@@ -76,10 +76,18 @@ export async function GET(req: NextRequest) {
           if (data.status === 'approved') {
             isApproved = true;
           }
-          ramMb = data.metadata?.ram_mb || ramMb;
-          planId = data.metadata?.plan_id || planId;
-          userId = data.metadata?.user_id || userId;
           amount = data.transaction_amount || amount;
+
+          if (data.external_reference) {
+            const parts = data.external_reference.split('-');
+            if (parts[0]) planId = parts[0];
+            if (parts[1]) ramMb = parseInt(parts[1], 10) || ramMb;
+            if (parts[2]) userId = parts.slice(2).join('-');
+          } else {
+            ramMb = data.metadata?.ram_mb || ramMb;
+            planId = data.metadata?.plan_id || planId;
+            userId = data.metadata?.user_id || userId;
+          }
         }
       } catch (_) {}
     }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { inspectZipBot } from '@/lib/botInspector';
 import { parseAndShimZip } from '@/lib/loader/universalParser';
+import { checkUserSubscription } from '@/lib/subscriptionManager';
 import JSZip from 'jszip';
 
 const MAX_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB limite estrito
@@ -107,14 +108,9 @@ export async function POST(req: NextRequest) {
       (b) => b.token_encrypted === effectiveToken || b.bot_name.toLowerCase() === inspected.name.toLowerCase()
     );
 
-    // Consulta cota real contratada no perfil do usuário
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('quota_limit_mb')
-      .limit(1)
-      .maybeSingle();
-
-    const userQuotaMb = Math.max(profile?.quota_limit_mb || 100, 100);
+    // Consulta cota real contratada no perfil do usuário (assinatura ativa nos logs)
+    const sub = await checkUserSubscription();
+    const userQuotaMb = Math.max(sub.isActive ? sub.ramMb : 100, 100);
     const maxAllowedApps = Math.max(1, Math.floor(userQuotaMb / 100));
     const requiredRam = Math.max(inspected.ramLimitMb || 100, 100);
 

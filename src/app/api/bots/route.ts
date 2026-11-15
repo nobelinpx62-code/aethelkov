@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { checkUserSubscription } from '@/lib/subscriptionManager';
 
 export async function GET(req: NextRequest) {
   try {
@@ -50,14 +51,9 @@ export async function POST(req: NextRequest) {
       (b) => b.token_encrypted === token || b.bot_name.toLowerCase() === bot_name.toLowerCase()
     );
 
-    // Consulta a cota real contratada pelo usuário no banco
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('quota_limit_mb')
-      .limit(1)
-      .maybeSingle();
-
-    const userQuotaMb = Math.max(profile?.quota_limit_mb || 100, 100);
+    // Consulta a cota real contratada pelo usuário (verificando assinatura ativa nos logs e no perfil)
+    const sub = await checkUserSubscription();
+    const userQuotaMb = Math.max(sub.isActive ? sub.ramMb : 100, 100);
     const maxAllowedApps = Math.max(1, Math.floor(userQuotaMb / 100));
     const requiredRam = Math.max(ram_limit_mb || 100, 100);
 

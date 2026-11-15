@@ -12,7 +12,7 @@ export interface PlanSubscription {
 }
 
 /**
- * Registra a ativação de um plano por 30 dias
+ * Registra a ativação de um plano por 30 dias nos logs permanentes do Supabase
  */
 export async function activatePlanSubscription(
   userId: string,
@@ -24,8 +24,8 @@ export async function activatePlanSubscription(
 
   const payload = {
     userId: userId || 'default-user',
-    planId,
-    ramMb,
+    planId: planId || '1gb',
+    ramMb: ramMb || 1024,
     activatedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
   };
@@ -40,22 +40,15 @@ export async function activatePlanSubscription(
     console.error('[Subscription] Erro ao gravar log de assinatura:', err);
   }
 
-  // 2. Atualiza a cota real no perfil
+  // 2. Tenta atualizar a cota no perfil (caso RLS permita)
   try {
     if (userId && userId !== 'default-user' && userId !== 'anon') {
       await supabase
         .from('profiles')
         .update({ quota_limit_mb: ramMb, updated_at: now.toISOString() })
         .eq('id', userId);
-    } else {
-      await supabase
-        .from('profiles')
-        .update({ quota_limit_mb: ramMb, updated_at: now.toISOString() })
-        .not('id', 'is', null);
     }
-  } catch (err) {
-    console.error('[Subscription] Erro ao atualizar quota_limit_mb:', err);
-  }
+  } catch (_) {}
 
   return {
     ...payload,
@@ -81,25 +74,33 @@ export async function checkUserSubscription(userId?: string): Promise<PlanSubscr
   };
 
   try {
-    // Busca a assinatura mais recente nos logs
-    let query = supabase
+    // Busca as assinaturas mais recentes nos logs do Supabase
+    const { data: logs, error } = await supabase
       .from('aethel_logs')
       .select('*')
       .ilike('message', '[PLAN_SUBSCRIPTION]%')
       .order('id', { ascending: false })
-      .limit(10);
+      .limit(20);
 
-    const { data: logs, error } = await query;
     if (error || !logs || logs.length === 0) {
       return defaultFree;
     }
 
-    // Encontra o log do usuário correspondente
+    // Encontra o log do usuário correspondente (tolerante a prefixos UUID)
+    const cleanUserId = userId ? String(userId).trim().toLowerCase() : '';
+
     let matchedLog = logs.find((l) => {
       try {
         const rawJson = l.message.replace('[PLAN_SUBSCRIPTION] ', '');
         const parsed = JSON.parse(rawJson);
-        return !userId || parsed.userId === userId || parsed.userId === 'default-user';
+        const subUserId = String(parsed.userId || '').trim().toLowerCase();
+
+        if (!cleanUserId || subUserId === 'default-user' || subUserId === 'anon') return true;
+        if (subUserId === cleanUserId) return true;
+        // Tolera UUID cortado (ex: 32 vs 36 caracteres)
+        if (cleanUserId.startsWith(subUserId.slice(0, 24)) || subUserId.startsWith(cleanUserId.slice(0, 24))) return true;
+
+        return false;
       } catch {
         return false;
       }
@@ -121,8 +122,8 @@ export async function checkUserSubscription(userId?: string): Promise<PlanSubscr
     if (msRemaining > 0) {
       return {
         userId: subData.userId,
-        planId: subData.planId,
-        ramMb: subData.ramMb,
+        planId: subData.planId || '1gb',
+        ramMb: subData.ramMb || 1024,
         activatedAt: subData.activatedAt,
         expiresAt: subData.expiresAt,
         daysRemaining,
@@ -131,50 +132,7 @@ export async function checkUserSubscription(userId?: string): Promise<PlanSubscr
       };
     }
 
-    // ========================================================
-    // PLANO EXPIRADO APÓS 30 DIAS: RETORNA AUTOMATICAMENTE AO FREE
-    // ========================================================
-    console.warn(`[Subscription] Plano ${subData.planId.toUpperCase()} do usuário expirou após 30 dias!`);
-
-    // 1. Rebaixa a cota no perfil de volta para 100 MB
-    try {
-      if (userId && userId !== 'default-user') {
-        await supabase
-          .from('profiles')
-          .update({ quota_limit_mb: 100, updated_at: now.toISOString() })
-          .eq('id', userId);
-      } else {
-        await supabase
-          .from('profiles')
-          .update({ quota_limit_mb: 100, updated_at: now.toISOString() })
-          .not('id', 'is', null);
-      }
-    } catch (_) {}
-
-    // 2. Se tiver bots excedendo os 100 MB do Starter, pausa os bots excedentes
-    try {
-      const { data: userBots } = await supabase
-        .from('aethel_bots')
-        .select('id, ram_limit_mb, status');
-
-      if (userBots && userBots.length > 1) {
-        // Mantém apenas o primeiro bot e pausa os demais
-        const botsToStop = userBots.slice(1).map((b) => b.id);
-        await supabase
-          .from('aethel_bots')
-          .update({ status: 'STOPPED' })
-          .in('id', botsToStop);
-      }
-    } catch (_) {}
-
-    // 3. Registra log de expiração
-    try {
-      await supabase.from('aethel_logs').insert({
-        log_level: 'WARN',
-        message: `[PLAN_EXPIRED] Plano ${subData.planId.toUpperCase()} expirou após 30 dias. A cota foi rebaixada para 100 MB (Starter Free).`,
-      });
-    } catch (_) {}
-
+    // Plano expirado após 30 dias:
     return {
       userId: subData.userId,
       planId: subData.planId,

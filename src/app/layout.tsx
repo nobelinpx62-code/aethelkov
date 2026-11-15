@@ -10,8 +10,56 @@ export const viewport: Viewport = {
 };
 
 export const metadata: Metadata = {
-  title: 'Aethel Kov | Autonomous Hybrid Grid Runtime',
-  description: 'Hospedagem profissional de bots Discord e Telegram com infraestrutura de alta velocidade 24/7.',
+  metadataBase: new URL('https://linkthelkov.online'),
+  title: {
+    default: 'Aethelkov — Hospedagem de Bots Discord 24/7 & Cloud Grid',
+    template: '%s | Aethelkov',
+  },
+  description: 'Aethelkov é a plataforma definitiva para hospedagem de bots Discord e Telegram com infraestrutura de alta velocidade 24/7. Suporte a Python, Node.js e Java com zero restrições de código e ativação imediata.',
+  keywords: [
+    'Aethelkov',
+    'aethelkov',
+    'aethel kov',
+    'hospedagem discord bot',
+    'host bot discord',
+    'hospedar bot discord',
+    'bot discord 24/7',
+    'discloud alternativa',
+    'linkethelkov',
+    'linkthelkov',
+    'hospedagem python bot',
+    'hospedagem nodejs bot',
+    'aethel cloud'
+  ],
+  authors: [{ name: 'Aethelkov' }],
+  creator: 'Aethelkov',
+  publisher: 'Aethelkov',
+  applicationName: 'Aethelkov',
+  alternates: {
+    canonical: 'https://linkthelkov.online',
+  },
+  openGraph: {
+    title: 'Aethelkov — Hospedagem de Bots Discord 24/7',
+    description: 'Hospedagem de alta performance para bots Discord em Python, Node.js e Java. Zero restrições de código e ativação imediata via Pix.',
+    url: 'https://linkthelkov.online',
+    siteName: 'Aethelkov',
+    locale: 'pt_BR',
+    type: 'website',
+    images: [
+      {
+        url: '/icon.svg',
+        width: 512,
+        height: 512,
+        alt: 'Aethelkov Logo',
+      },
+    ],
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Aethelkov — Hospedagem de Bots Discord 24/7',
+    description: 'Hospede seus bots Discord sem restrições com suporte a Python, Node.js e Java.',
+    images: ['/icon.svg'],
+  },
   manifest: '/manifest.json',
   icons: {
     icon: [
@@ -25,9 +73,44 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     statusBarStyle: 'black-translucent',
-    title: 'Aethel Kov',
+    title: 'Aethelkov',
   },
-  applicationName: 'Aethel Kov',
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-video-preview': -1,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+    },
+  },
+};
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'WebSite',
+      '@id': 'https://linkthelkov.online/#website',
+      url: 'https://linkthelkov.online/',
+      name: 'Aethelkov',
+      alternateName: ['Aethel Kov', 'Aethelkov Cloud', 'Linkethelkov', 'Linkthelkov'],
+      description: 'Plataforma de infraestrutura e hospedagem 24/7 para bots de Discord e Telegram.',
+      inLanguage: 'pt-BR',
+    },
+    {
+      '@type': 'Organization',
+      '@id': 'https://linkthelkov.online/#organization',
+      name: 'Aethelkov',
+      url: 'https://linkthelkov.online/',
+      logo: 'https://linkthelkov.online/icon.svg',
+      sameAs: [
+        'https://linkthelkov.online',
+      ],
+    },
+  ],
 };
 
 export default function RootLayout({
@@ -37,10 +120,15 @@ export default function RootLayout({
 }) {
   return (
     <html lang="pt-BR">
+      <head>
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+      </head>
       <body className="antialiased selection:bg-emerald-500/30 selection:text-emerald-200">
         {children}
       </body>
     </html>
   );
 }
-

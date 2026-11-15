@@ -1,0 +1,12 @@
+{
+  "name": "meuapp-site",
+  "version": "1.0.0",
+  "description": "Site Web de Teste na Aethelkov",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "keywords": ["aethelkov", "hosting", "web"],
+  "author": "Aethelkov User",
+  "license": "MIT"
+}

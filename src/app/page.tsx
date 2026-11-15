@@ -359,20 +359,17 @@ export default function DashboardPage() {
               /* Aba de Planos, Recursos e Assinaturas */
               <PlansView 
                 currentUser={currentUser} 
+                subscription={subscription}
                 onOpenDeploy={() => setIsDeployOpen(true)}
                 onPlanPurchased={() => {
                   fetchBotsAndStats();
                   if (currentUser?.id) {
-                    supabase
-                      .from('profiles')
-                      .select('quota_limit_mb')
-                      .eq('id', currentUser.id)
-                      .maybeSingle()
-                      .then(({ data }) => {
-                        if (data?.quota_limit_mb) {
-                          setPurchasedQuotaMb(Math.max(data.quota_limit_mb, 100));
-                        }
-                      });
+                    checkUserSubscription(currentUser.id).then((sub) => {
+                      setSubscription(sub);
+                      if (sub.isActive && sub.ramMb) {
+                        setPurchasedQuotaMb(Math.max(sub.ramMb, 100));
+                      }
+                    });
                   }
                 }}
               />

@@ -12,15 +12,27 @@ export interface PlanSubscription {
 }
 
 /**
- * Registra a ativação de um plano por 30 dias nos logs permanentes do Supabase
+ * Registra a ativação ou upgrade de um plano
+ * Se isUpgrade = true, mantém os dias restantes da assinatura atual (continua nos mesmos dias)
  */
 export async function activatePlanSubscription(
   userId: string,
   planId: string,
-  ramMb: number
+  ramMb: number,
+  isUpgrade: boolean = false
 ): Promise<PlanSubscription> {
   const now = new Date();
-  const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+  let expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+  // Se for upgrade de plano ativo, mantém exatamente a mesma data de expiração da assinatura atual
+  if (isUpgrade) {
+    try {
+      const currentSub = await checkUserSubscription(userId);
+      if (currentSub.isActive && currentSub.expiresAt) {
+        expiresAt = new Date(currentSub.expiresAt);
+      }
+    } catch (_) {}
+  }
 
   const payload = {
     userId: userId || 'default-user',
@@ -28,9 +40,10 @@ export async function activatePlanSubscription(
     ramMb: ramMb || 1024,
     activatedAt: now.toISOString(),
     expiresAt: expiresAt.toISOString(),
+    isUpgrade,
   };
 
-  // 1. Salva o registro de assinatura nos logs permanentes
+  // 1. Salva o registro de assinatura nos logs permanentes do Supabase
   try {
     await supabase.from('aethel_logs').insert({
       log_level: 'INFO',
@@ -50,9 +63,12 @@ export async function activatePlanSubscription(
     }
   } catch (_) {}
 
+  const msRemaining = expiresAt.getTime() - now.getTime();
+  const daysRemaining = Math.max(1, Math.ceil(msRemaining / (1000 * 60 * 60 * 24)));
+
   return {
     ...payload,
-    daysRemaining: 30,
+    daysRemaining,
     isActive: true,
     isExpired: false,
   };
@@ -80,7 +96,7 @@ export async function checkUserSubscription(userId?: string): Promise<PlanSubscr
       .select('*')
       .ilike('message', '[PLAN_SUBSCRIPTION]%')
       .order('id', { ascending: false })
-      .limit(20);
+      .limit(25);
 
     if (error || !logs || logs.length === 0) {
       return defaultFree;
@@ -97,7 +113,7 @@ export async function checkUserSubscription(userId?: string): Promise<PlanSubscr
 
         if (!cleanUserId || subUserId === 'default-user' || subUserId === 'anon') return true;
         if (subUserId === cleanUserId) return true;
-        // Tolera UUID cortado (ex: 32 vs 36 caracteres)
+        // Tolera UUID cortado
         if (cleanUserId.startsWith(subUserId.slice(0, 24)) || subUserId.startsWith(cleanUserId.slice(0, 24))) return true;
 
         return false;
@@ -132,7 +148,7 @@ export async function checkUserSubscription(userId?: string): Promise<PlanSubscr
       };
     }
 
-    // Plano expirado após 30 dias:
+    // Plano expirado após 30 dias
     return {
       userId: subData.userId,
       planId: subData.planId,

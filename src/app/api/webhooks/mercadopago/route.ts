@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
     }
 
     let isApproved = false;
+    let isUpgrade = false;
     let ramMb = 1024;
     let planId = '1gb';
     let userId = 'default-user';
@@ -89,7 +90,12 @@ export async function POST(req: NextRequest) {
           amount = parseFloat(orderData.total_amount || '0');
 
           if (orderData.external_reference) {
-            const parts = orderData.external_reference.split('-');
+            let ref = orderData.external_reference;
+            if (ref.startsWith('up-')) {
+              isUpgrade = true;
+              ref = ref.replace(/^up-/, '');
+            }
+            const parts = ref.split('-');
             if (parts[0]) planId = parts[0];
             if (parts[1]) ramMb = parseInt(parts[1], 10) || 1024;
             if (parts[2]) userId = parts.slice(2).join('-');
@@ -109,7 +115,12 @@ export async function POST(req: NextRequest) {
           amount = payment.transaction_amount || 0;
 
           if (payment.external_reference) {
-            const parts = payment.external_reference.split('-');
+            let ref = payment.external_reference;
+            if (ref.startsWith('up-')) {
+              isUpgrade = true;
+              ref = ref.replace(/^up-/, '');
+            }
+            const parts = ref.split('-');
             if (parts[0]) planId = parts[0];
             if (parts[1]) ramMb = parseInt(parts[1], 10) || 1024;
             if (parts[2]) userId = parts.slice(2).join('-');
@@ -117,6 +128,7 @@ export async function POST(req: NextRequest) {
             ramMb = payment.metadata?.ram_mb || 1024;
             planId = payment.metadata?.plan_id || '1gb';
             userId = payment.metadata?.user_id || 'default-user';
+            isUpgrade = payment.metadata?.is_upgrade || false;
           }
         }
       }
@@ -126,7 +138,7 @@ export async function POST(req: NextRequest) {
     // ENTREGA AUTOMÁTICA DE RAM AO CLIENTE VIA WEBHOOK & ATIVAÇÃO DE 30 DIAS
     // ========================================================
     if (isApproved) {
-      await activatePlanSubscription(userId, planId, ramMb);
+      await activatePlanSubscription(userId, planId, ramMb, isUpgrade);
     }
 
     return NextResponse.json({ status: 'ok', approved: isApproved, id });

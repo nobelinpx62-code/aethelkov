@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     }
 
     let isApproved = false;
+    let isUpgrade = false;
     let ramMb = 1024;
     let planId = '1gb';
     let userId = 'default-user';
@@ -51,9 +52,14 @@ export async function GET(req: NextRequest) {
 
         amount = parseFloat(orderData.total_amount || '0');
 
-        // Parse external_reference: "planId-ramMb-userId"
+        // Parse external_reference: "planId-ramMb-userId" ou "up-planId-ramMb-userId"
         if (orderData.external_reference) {
-          const parts = orderData.external_reference.split('-');
+          let ref = orderData.external_reference;
+          if (ref.startsWith('up-')) {
+            isUpgrade = true;
+            ref = ref.replace(/^up-/, '');
+          }
+          const parts = ref.split('-');
           if (parts[0]) planId = parts[0];
           if (parts[1]) ramMb = parseInt(parts[1], 10) || 1024;
           if (parts[2]) userId = parts.slice(2).join('-');
@@ -79,7 +85,12 @@ export async function GET(req: NextRequest) {
           amount = data.transaction_amount || amount;
 
           if (data.external_reference) {
-            const parts = data.external_reference.split('-');
+            let ref = data.external_reference;
+            if (ref.startsWith('up-')) {
+              isUpgrade = true;
+              ref = ref.replace(/^up-/, '');
+            }
+            const parts = ref.split('-');
             if (parts[0]) planId = parts[0];
             if (parts[1]) ramMb = parseInt(parts[1], 10) || ramMb;
             if (parts[2]) userId = parts.slice(2).join('-');
@@ -87,6 +98,7 @@ export async function GET(req: NextRequest) {
             ramMb = data.metadata?.ram_mb || ramMb;
             planId = data.metadata?.plan_id || planId;
             userId = data.metadata?.user_id || userId;
+            isUpgrade = data.metadata?.is_upgrade || false;
           }
         }
       } catch (_) {}
@@ -96,7 +108,7 @@ export async function GET(req: NextRequest) {
     // ENTREGA IMEDIATA DE RAM (GBs) NO BANCO DO USUÁRIO & ATIVAÇÃO DE 30 DIAS
     // ========================================================
     if (isApproved) {
-      await activatePlanSubscription(userId, planId, ramMb);
+      await activatePlanSubscription(userId, planId, ramMb, isUpgrade);
     }
 
     return NextResponse.json({

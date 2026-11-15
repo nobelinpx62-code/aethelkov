@@ -1,21 +1,22 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { checkUserSubscription } from '@/lib/subscriptionManager';
 
 export const dynamic = 'force-dynamic';
 
 const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || '';
 
-const PLAN_PRICES: Record<string, { name: string; ramMb: number; price: number }> = {
-  'free': { name: 'Starter', ramMb: 100, price: 0 },
-  '1gb': { name: 'Gold', ramMb: 1024, price: 5.00 },
-  '2gb': { name: 'Platinum', ramMb: 2048, price: 10.00 },
-  '4gb': { name: 'Diamond', ramMb: 4096, price: 23.99 },
-  '8gb': { name: 'Monster', ramMb: 8192, price: 45.00 },
+const PLAN_PRICES: Record<string, { name: string; ramMb: number; price: number; tier: number }> = {
+  'free': { name: 'Starter', ramMb: 100, price: 0, tier: 0 },
+  '1gb': { name: 'Gold', ramMb: 1024, price: 5.00, tier: 1 },
+  '2gb': { name: 'Platinum', ramMb: 2048, price: 10.00, tier: 2 },
+  '4gb': { name: 'Diamond', ramMb: 4096, price: 23.99, tier: 3 },
+  '8gb': { name: 'Monster', ramMb: 8192, price: 45.00, tier: 4 },
 };
 
 /**
  * POST /api/payments/pix
- * Gera cobrança Pix oficial via Mercado Pago API (suporta nova API de Orders e API clássica de Payments)
+ * Gera cobrança Pix com suporte a Regra de Upgrade (50% OFF) e Bloqueio de Plano Duplicado
  */
 export async function POST(req: NextRequest) {
   try {
@@ -33,15 +34,53 @@ export async function POST(req: NextRequest) {
       }, { status: 500 });
     }
 
+    // ========================================================
+    // REGRA DE ASSINATURA: BLOQUEIO DO MESMO PLANO & UPGRADE COM 50% OFF
+    // ========================================================
+    let isUpgrade = false;
+    let finalPrice = plan.price;
+
+    const currentSub = await checkUserSubscription(userId);
+    if (currentSub.isActive && currentSub.planId) {
+      const currentTier = PLAN_PRICES[currentSub.planId]?.tier || 0;
+      const targetTier = plan.tier;
+
+      // 1. Bloqueia comprar o mesmo plano novamente enquanto ativo
+      if (currentSub.planId === planId) {
+        return NextResponse.json({
+          error: `Você já possui o Plano ${plan.name} ativo com ${currentSub.daysRemaining} dias restantes! Não é possível comprar o mesmo plano novamente. Escolha um plano superior para fazer Upgrade com 50% de desconto.`,
+        }, { status: 400 });
+      }
+
+      // 2. Se for plano inferior, não permite downgrade pago
+      if (targetTier < currentTier) {
+        return NextResponse.json({
+          error: `Seu plano atual (${PLAN_PRICES[currentSub.planId]?.name || 'Superior'}) já possui mais recursos do que o plano ${plan.name}.`,
+        }, { status: 400 });
+      }
+
+      // 3. Se for upgrade para plano superior: paga apenas metade (50% OFF)!
+      if (targetTier > currentTier) {
+        isUpgrade = true;
+        finalPrice = Math.round((plan.price / 2) * 100) / 100;
+      }
+    }
+
     const email = payerEmail?.trim() || 'cliente@aethelkov.app';
     const nameParts = (payerName?.trim() || 'Cliente Aethel').split(' ');
     const firstName = nameParts[0] || 'Cliente';
     const lastName = nameParts.slice(1).join(' ') || 'Aethel';
 
-    // Higieniza o external_reference (mantém UUID completo de 36 caracteres)
+    // Higieniza o external_reference (prefixo up- identifica upgrades)
     const safeUserId = (userId || 'anon').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 48);
-    const extRef = `${planId}-${plan.ramMb}-${safeUserId}`;
+    const extRef = isUpgrade
+      ? `up-${planId}-${plan.ramMb}-${safeUserId}`
+      : `${planId}-${plan.ramMb}-${safeUserId}`;
     const idempotencyKey = `aethel-${planId}-${safeUserId}-${Date.now()}`;
+
+    const description = isUpgrade
+      ? `Aethelkov - Upgrade Plano ${plan.name} (50% OFF - ${plan.ramMb} MB RAM)`
+      : `Aethelkov - Plano ${plan.name} (${plan.ramMb} MB RAM)`;
 
     // 1. Tenta gerar via nova API de Orders (Padrão Oficial 2026 Mercado Pago)
     try {
@@ -55,9 +94,9 @@ export async function POST(req: NextRequest) {
         body: JSON.stringify({
           type: 'online',
           processing_mode: 'automatic',
-          total_amount: plan.price.toFixed(2),
+          total_amount: finalPrice.toFixed(2),
           external_reference: extRef,
-          description: `Aethelkov - Plano ${plan.name} (${plan.ramMb} MB RAM)`,
+          description,
           payer: {
             email,
             first_name: firstName,
@@ -66,7 +105,7 @@ export async function POST(req: NextRequest) {
           transactions: {
             payments: [
               {
-                amount: plan.price.toFixed(2),
+                amount: finalPrice.toFixed(2),
                 payment_method: {
                   id: 'pix',
                   type: 'bank_transfer',
@@ -84,17 +123,11 @@ export async function POST(req: NextRequest) {
         const qrCodeBase64 = paymentInfo?.payment_method?.qr_code_base64;
         const ticketUrl = paymentInfo?.payment_method?.ticket_url;
 
-        // Salva transação no Supabase
+        // Registra nos logs
         try {
-          await supabase.from('aethel_payments').insert({
-            payment_id: String(orderData.id),
-            user_id: userId || 'default-user',
-            plan_id: planId,
-            amount: plan.price,
-            ram_mb: plan.ramMb,
-            status: orderData.status || 'action_required',
-            qr_code: qrCode,
-            created_at: new Date().toISOString(),
+          await supabase.from('aethel_logs').insert({
+            log_level: 'INFO',
+            message: `[Pix Criado] Pedido #${orderData.id} - ${isUpgrade ? 'UPGRADE (50% OFF)' : 'NOVO PLANO'} ${plan.name} por R$ ${finalPrice.toFixed(2)}`,
           });
         } catch (_) {}
 
@@ -107,24 +140,23 @@ export async function POST(req: NextRequest) {
           qrCode,
           qrCodeBase64,
           ticketUrl,
-          amount: plan.price,
+          amount: finalPrice,
+          originalPrice: plan.price,
+          isUpgrade,
           ramMb: plan.ramMb,
           planName: plan.name,
         });
       } else {
         const orderErrData = await orderRes.json().catch(() => ({}));
         console.warn('[MercadoPago] Orders API retornou status não-ok:', orderRes.status, orderErrData);
-        // Se for erro de validação da Orders API, retorna o detalhe específico
-        if (orderRes.status === 400) {
-          const detailMsg = orderErrData.errors?.[0]?.message || orderErrData.message || 'Dados inválidos para geração do Pix.';
-          return NextResponse.json({ error: detailMsg, details: orderErrData }, { status: 400 });
-        }
+        const detailMsg = orderErrData.errors?.[0]?.message || orderErrData.message || 'Erro ao processar pedido no Mercado Pago.';
+        return NextResponse.json({ error: detailMsg, details: orderErrData }, { status: orderRes.status || 400 });
       }
-    } catch (orderErr) {
-      console.warn('[MercadoPago] Orders API falhou, tentando fallback para /v1/payments:', orderErr);
+    } catch (orderErr: any) {
+      console.warn('[MercadoPago] Orders API falhou com exceção:', orderErr);
     }
 
-    // 2. Fallback para API clássica de Payments (apenas se Orders API não for aplicável)
+    // 2. Fallback para API clássica de Payments
     const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
@@ -133,8 +165,8 @@ export async function POST(req: NextRequest) {
         'X-Idempotency-Key': idempotencyKey,
       },
       body: JSON.stringify({
-        transaction_amount: plan.price,
-        description: `Aethelkov - Plano ${plan.name} (${plan.ramMb} MB RAM)`,
+        transaction_amount: finalPrice,
+        description,
         payment_method_id: 'pix',
         payer: {
           email,
@@ -146,6 +178,7 @@ export async function POST(req: NextRequest) {
           plan_id: planId,
           ram_mb: plan.ramMb,
           user_id: userId || 'default-user',
+          is_upgrade: isUpgrade,
         },
       }),
     });
@@ -164,19 +197,6 @@ export async function POST(req: NextRequest) {
     const qrCodeBase64 = mpData.point_of_interaction?.transaction_data?.qr_code_base64;
     const ticketUrl = mpData.point_of_interaction?.transaction_data?.ticket_url;
 
-    try {
-      await supabase.from('aethel_payments').insert({
-        payment_id: String(mpData.id),
-        user_id: userId || 'default-user',
-        plan_id: planId,
-        amount: plan.price,
-        ram_mb: plan.ramMb,
-        status: mpData.status || 'pending',
-        qr_code: qrCode,
-        created_at: new Date().toISOString(),
-      });
-    } catch (_) {}
-
     return NextResponse.json({
       success: true,
       paymentId: mpData.id,
@@ -184,7 +204,9 @@ export async function POST(req: NextRequest) {
       qrCode,
       qrCodeBase64,
       ticketUrl,
-      amount: plan.price,
+      amount: finalPrice,
+      originalPrice: plan.price,
+      isUpgrade,
       ramMb: plan.ramMb,
       planName: plan.name,
     });

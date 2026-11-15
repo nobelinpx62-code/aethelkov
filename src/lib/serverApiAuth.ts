@@ -27,7 +27,7 @@ export function authenticateApiRequest(req: NextRequest): { authenticated: boole
           status: 'error',
           statusCode: 401,
           message: 'Não autorizado. Forneça sua chave de API da Aethel Cloud através do header "api-token". Obtenha sua chave na aba Configurações do painel.',
-          docs: 'https://aethelkov.vercel.app/api/v1/user',
+          docs: 'https://linkthelkov.online/api/v1/user',
         },
         { status: 401 }
       ),

@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
           first_name: firstName,
           last_name: lastName,
         },
-        notification_url: 'https://aethelkov.vercel.app/api/webhooks/mercadopago',
+        notification_url: 'https://linkthelkov.online/api/webhooks/mercadopago',
         metadata: {
           plan_id: planId,
           ram_mb: plan.ramMb,

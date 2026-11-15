@@ -102,7 +102,7 @@ export const AethelSettingsView: React.FC<AethelSettingsViewProps> = ({ currentU
     ? apiKey.substring(0, 14) + '•'.repeat(22) + apiKey.substring(apiKey.length - 4)
     : '';
 
-  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://aethelkov.vercel.app';
+  const origin = typeof window !== 'undefined' ? window.location.origin : 'https://linkthelkov.online';
   const badgeUrl = `${origin}/badge.svg`;
   const badgeMarkdown = `[![Hosted on Aethel Cloud](${badgeUrl})](${origin})`;
   const badgeHtml = `<a href="${origin}"><img src="${badgeUrl}" alt="Hosted on Aethel Cloud" /></a>`;

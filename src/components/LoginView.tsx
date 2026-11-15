@@ -111,15 +111,12 @@ export const LoginView: React.FC<LoginViewProps> = ({
     return () => clearInterval(interval);
   }, [isPaused, slides.length]);
 
-  // URL de Redirecionamento Dinâmica (Produção Vercel ou Localhost)
+  // URL de Redirecionamento Dinâmica (Produção linkthelkov.online, Vercel ou Localhost)
   const getRedirectUrl = () => {
     if (typeof window !== 'undefined') {
-      if (window.location.hostname.includes('vercel.app') || window.location.hostname === 'aethelkov.vercel.app') {
-        return 'https://aethelkov.vercel.app/';
-      }
       return `${window.location.origin}/`;
     }
-    return 'https://aethelkov.vercel.app/';
+    return 'https://linkthelkov.online/';
   };
 
   // Login com Discord OAuth2

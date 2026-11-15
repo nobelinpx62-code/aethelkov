@@ -38,10 +38,12 @@ export async function POST(req: NextRequest) {
     const firstName = nameParts[0] || 'Cliente';
     const lastName = nameParts.slice(1).join(' ') || 'Aethel';
 
-    const extRef = `${planId}:${plan.ramMb}:${userId || 'anon'}`;
-    const idempotencyKey = `aethel-${planId}-${userId || 'anon'}-${Date.now()}`;
+    // Higieniza o external_reference (Orders API aceita apenas letras, números e hífens)
+    const safeUserId = (userId || 'anon').replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 32);
+    const extRef = `${planId}-${plan.ramMb}-${safeUserId}`;
+    const idempotencyKey = `aethel-${planId}-${safeUserId}-${Date.now()}`;
 
-    // 1. Tenta gerar via nova API de Orders (Padrão 2026 Mercado Pago)
+    // 1. Tenta gerar via nova API de Orders (Padrão Oficial 2026 Mercado Pago)
     try {
       const orderRes = await fetch('https://api.mercadopago.com/v1/orders', {
         method: 'POST',
@@ -109,12 +111,20 @@ export async function POST(req: NextRequest) {
           ramMb: plan.ramMb,
           planName: plan.name,
         });
+      } else {
+        const orderErrData = await orderRes.json().catch(() => ({}));
+        console.warn('[MercadoPago] Orders API retornou status não-ok:', orderRes.status, orderErrData);
+        // Se for erro de validação da Orders API, retorna o detalhe específico
+        if (orderRes.status === 400) {
+          const detailMsg = orderErrData.errors?.[0]?.message || orderErrData.message || 'Dados inválidos para geração do Pix.';
+          return NextResponse.json({ error: detailMsg, details: orderErrData }, { status: 400 });
+        }
       }
     } catch (orderErr) {
       console.warn('[MercadoPago] Orders API falhou, tentando fallback para /v1/payments:', orderErr);
     }
 
-    // 2. Fallback para API clássica de Payments
+    // 2. Fallback para API clássica de Payments (apenas se Orders API não for aplicável)
     const mpRes = await fetch('https://api.mercadopago.com/v1/payments', {
       method: 'POST',
       headers: {
@@ -143,7 +153,7 @@ export async function POST(req: NextRequest) {
     const mpData = await mpRes.json();
 
     if (!mpRes.ok) {
-      console.error('[MercadoPago] Erro ao criar Pix:', mpData);
+      console.error('[MercadoPago] Erro ao criar Pix (Payments):', mpData);
       return NextResponse.json({
         error: mpData.message || mpData.cause?.[0]?.description || 'Falha ao gerar cobrança no Mercado Pago.',
         details: mpData,

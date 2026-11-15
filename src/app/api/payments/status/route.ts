@@ -50,12 +50,12 @@ export async function GET(req: NextRequest) {
 
         amount = parseFloat(orderData.total_amount || '0');
 
-        // Parse external_reference: "planId:ramMb:userId"
+        // Parse external_reference: "planId-ramMb-userId"
         if (orderData.external_reference) {
-          const parts = orderData.external_reference.split(':');
+          const parts = orderData.external_reference.split('-');
           if (parts[0]) planId = parts[0];
           if (parts[1]) ramMb = parseInt(parts[1], 10) || 1024;
-          if (parts[2]) userId = parts[2];
+          if (parts[2]) userId = parts.slice(2).join('-');
         }
       }
     }

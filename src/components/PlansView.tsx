@@ -108,6 +108,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy,
     {
       id: 'free',
       name: 'Starter',
+      ramMb: 100,
       ramText: '100 MB RAM',
       price: 'R$ 0',
       period: '/mês',
@@ -125,6 +126,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy,
     {
       id: '1gb',
       name: 'Gold',
+      ramMb: 1024,
       ramText: '1 GB RAM',
       price: 'R$ 5,00',
       period: '/mês',
@@ -143,6 +145,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy,
     {
       id: '2gb',
       name: 'Platinum',
+      ramMb: 2048,
       ramText: '2 GB RAM',
       price: 'R$ 10,00',
       period: '/mês',
@@ -160,6 +163,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy,
     {
       id: '4gb',
       name: 'Diamond',
+      ramMb: 4096,
       ramText: '4 GB RAM',
       price: 'R$ 23,99',
       period: '/mês',
@@ -177,6 +181,7 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy,
     {
       id: '8gb',
       name: 'Monster',
+      ramMb: 8192,
       ramText: '8 GB RAM',
       price: 'R$ 45,00',
       period: '/mês',
@@ -293,20 +298,60 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy,
 
             {/* Cenário 1: Pagamento Aprovado com Sucesso */}
             {isPaid ? (
-              <div className="py-8 text-center space-y-4 animate-fadeIn font-mono">
-                <div className="flex h-16 w-16 mx-auto items-center justify-center rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-400/40">
-                  <CheckCircle2 className="w-10 h-10 animate-bounce" />
+              <div className="py-6 text-center space-y-4 animate-fadeIn font-mono">
+                <div className="relative flex h-20 w-20 mx-auto items-center justify-center rounded-3xl bg-gradient-to-tr from-emerald-500/30 to-cyan-500/20 text-emerald-400 border border-emerald-400/50 shadow-[0_0_40px_rgba(16,185,129,0.3)]">
+                  <CheckCircle2 className="w-12 h-12 text-emerald-400 animate-pulse" />
+                  <Sparkles className="w-5 h-5 text-amber-300 absolute -top-2 -right-2 animate-bounce" />
                 </div>
-                <h3 className="text-xl font-bold text-white">Pagamento Confirmado!</h3>
-                <p className="text-xs text-neutral-300 leading-relaxed max-w-xs mx-auto">
-                  O Pix foi identificado com sucesso! Os <strong>{selectedPlanForModal.ramText}</strong> já foram liberados e ativados na sua conta.
+                
+                <div>
+                  <span className="text-[11px] font-bold tracking-widest uppercase text-emerald-400 block mb-1">
+                    🎉 Pagamento Confirmado!
+                  </span>
+                  <h3 className="text-2xl font-black text-white tracking-tight">
+                    Parabéns! Plano {selectedPlanForModal.name} Ativado!
+                  </h3>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-white/5 border border-white/10 text-xs text-neutral-300 space-y-2 max-w-xs mx-auto">
+                  <div className="flex items-center justify-between text-white font-semibold">
+                    <span>RAM Adicionada:</span>
+                    <span className="text-[#00e676] font-mono text-sm font-bold">+{selectedPlanForModal.ramText}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-neutral-400 text-[11px]">
+                    <span>Capacidade:</span>
+                    <span className="text-cyan-300 font-semibold">
+                      Até {Math.floor((selectedPlanForModal.ramMb || 1024) / 100)} bots ou 1 bot pesado
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-neutral-400 text-[11px]">
+                    <span>Recursos:</span>
+                    <span className="text-emerald-400 font-bold">⚡ 100% Desbloqueados</span>
+                  </div>
+                </div>
+
+                <p className="text-[11px] text-neutral-400 leading-relaxed max-w-xs mx-auto">
+                  Sua nova cota já foi entregue e ativada no seu perfil. Você já pode criar instâncias ou subir bots sem restrições!
                 </p>
-                <button
-                  onClick={resetModal}
-                  className="apple-pill-btn apple-pill-primary px-6 py-2.5 text-xs font-bold text-white rounded-xl shadow-lg mt-2"
-                >
-                  Concluir e Voltar ao Painel
-                </button>
+
+                <div className="flex gap-2.5 pt-2">
+                  <button
+                    onClick={resetModal}
+                    className="flex-1 py-3 px-4 rounded-xl bg-white/5 text-neutral-300 text-xs font-mono hover:bg-white/10 transition-all"
+                  >
+                    Voltar ao Painel
+                  </button>
+                  <button
+                    onClick={() => {
+                      resetModal();
+                      onOpenDeploy?.();
+                    }}
+                    className="flex-1 apple-pill-primary py-3 px-4 rounded-xl text-white text-xs font-bold font-mono shadow-lg flex items-center justify-center gap-1.5 transition-all"
+                  >
+                    <span>Criar Meu Bot</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             ) : pixData ? (
               /* Cenário 2: Exibição do QR Code e Pix Copia e Cola */

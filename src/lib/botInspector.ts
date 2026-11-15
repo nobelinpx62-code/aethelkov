@@ -12,6 +12,8 @@ export interface InspectedBotData {
   subdomain?: string;
   language: 'python' | 'nodejs' | 'java' | 'other';
   hasDiscloudConfig: boolean;
+  hasConfigFile?: boolean;
+  configFileName?: 'aethel.config' | 'discloud.config' | null;
   generatedDiscloudConfig: string;
   detectedEnvVars: Record<string, string>;
   detectionDetails: {
@@ -427,6 +429,8 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     subdomain: detectedSubdomain,
     language: detectedLanguage,
     hasDiscloudConfig,
+    hasConfigFile: !!(aethelEntry || discloudEntry),
+    configFileName: aethelEntry ? 'aethel.config' : discloudEntry ? 'discloud.config' : null,
     generatedDiscloudConfig,
     detectedEnvVars,
     detectionDetails: {

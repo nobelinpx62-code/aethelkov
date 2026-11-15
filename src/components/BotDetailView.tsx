@@ -432,13 +432,14 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
   return (
     <div className="space-y-6 animate-fadeIn pb-16">
       {/* BARRA SUPERIOR: VOLTAR + BOTÃO DE 3 TRACINHOS COM MENU HAMBURGUER ARREDONDADO */}
-      <div className="flex items-center justify-between gap-4">
+      <div className="flex items-center justify-between gap-3">
         <button
           onClick={onBack}
-          className="inline-flex items-center gap-2 text-xs font-semibold text-neutral-400 hover:text-white px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
+          className="inline-flex items-center gap-1.5 sm:gap-2 text-xs font-semibold text-neutral-400 hover:text-white px-3 sm:px-3.5 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 transition-colors"
         >
           <ArrowLeft className="w-4 h-4" />
-          <span>Voltar para todas as instâncias</span>
+          <span className="hidden sm:inline">Voltar para todas as instâncias</span>
+          <span className="sm:hidden">Voltar</span>
         </button>
 
         {/* Botão de Três Tracinhos + Menu Hambúrguer Suspenso com Borda Arredondada */}
@@ -555,7 +556,7 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full md:w-auto">
                 {bot.platform === 'TELEGRAM' && (
                   <button
                     onClick={async () => {

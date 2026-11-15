@@ -345,13 +345,13 @@ export const BotGrid: React.FC<BotGridProps> = ({
                   Criado: {new Date(bot.created_at).toLocaleDateString('pt-BR')} &bull; ID: {bot.id.slice(0, 8)}
                 </span>
 
-                <div className="flex items-center gap-2 flex-wrap">
+                <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
                   {/* Botão Painel Completo */}
                   <button
                     onClick={() => onOpenDetails(bot.id)}
-                    className="apple-pill-btn flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium text-cyan-300 border-cyan-500/20 hover:border-cyan-500/40"
+                    className="col-span-2 sm:col-span-1 apple-pill-btn flex items-center justify-center gap-1.5 rounded-full px-4 py-2 sm:py-1.5 text-xs font-medium text-cyan-300 border-cyan-500/20 hover:border-cyan-500/40"
                   >
-                    <Terminal className="h-3 w-3" />
+                    <Terminal className="h-3.5 w-3.5" />
                     <span>Detalhes & Logs</span>
                   </button>
 
@@ -361,32 +361,32 @@ export const BotGrid: React.FC<BotGridProps> = ({
                       onToggleStatus(bot.id, 'ONLINE');
                       setTimeout(() => onToggleStatus(bot.id, 'STOPPED'), 600);
                     }}
-                    className="apple-pill-btn flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium text-neutral-300"
+                    className="apple-pill-btn flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 sm:py-1.5 text-xs font-medium text-neutral-300"
                   >
-                    <RotateCcw className="h-3 w-3" />
+                    <RotateCcw className="h-3.5 w-3.5" />
                     <span>Reiniciar</span>
                   </button>
 
                   {/* Ligar / Parar */}
                   <button
                     onClick={() => onToggleStatus(bot.id, bot.status)}
-                    className={`apple-pill-btn flex items-center gap-1.5 rounded-full px-4 py-1.5 text-xs font-medium ${
+                    className={`apple-pill-btn flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 sm:py-1.5 text-xs font-medium ${
                       isOnline
                         ? 'text-red-400 border-red-500/20 hover:border-red-500/40'
                         : 'text-emerald-400 border-emerald-500/20 hover:border-emerald-500/40'
                     }`}
                   >
-                    <Power className="h-3 w-3" />
+                    <Power className="h-3.5 w-3.5" />
                     <span>{isOnline ? 'Parar' : 'Ligar'}</span>
                   </button>
 
                   {/* Botão Apagar Direto */}
                   <button
                     onClick={() => onDeleteBot(bot.id)}
-                    className="apple-pill-btn flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-neutral-500 hover:text-red-400 border-transparent hover:border-red-500/30"
+                    className="hidden sm:flex apple-pill-btn items-center justify-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-neutral-500 hover:text-red-400 border-transparent hover:border-red-500/30"
                     title="Apagar esta instância"
                   >
-                    <Trash2 className="h-3 w-3" />
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               </div>

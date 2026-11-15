@@ -200,10 +200,11 @@ export const Navbar: React.FC<NavbarProps> = ({
 
               <button
                 onClick={onOpenDeploy}
-                className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-4 sm:px-5 py-2 text-xs font-semibold tracking-wide text-white"
+                className="apple-pill-btn apple-pill-primary flex items-center gap-1.5 sm:gap-2 rounded-full px-3.5 sm:px-5 py-2 text-xs font-semibold tracking-wide text-white"
+                title="Criar nova aplicação (Bot ou Site)"
               >
                 <Plus className="h-4 w-4 text-white" />
-                <span className="hidden sm:inline">Nova Instância</span>
+                <span className="text-[11px] sm:text-xs font-mono">Nova Instância</span>
               </button>
 
               {/* Perfil Interativo do Usuário Autenticado (Discord Avatar & Nome) */}
@@ -572,6 +573,72 @@ export const Navbar: React.FC<NavbarProps> = ({
             </div>
           </div>
         </div>
+      )}
+      {/* Apple Liquid Glass Bottom Navigation Dock para Celular e Tablet */}
+      {currentUser && (
+        <nav aria-label="Navegação Móvel" className="lg:hidden fixed bottom-3 inset-x-3 z-40 bg-[#090b12]/92 backdrop-blur-2xl border border-white/15 rounded-3xl p-1.5 shadow-[0_12px_40px_rgba(0,0,0,0.9)] flex items-center justify-around font-mono text-[10px]">
+          <button
+            type="button"
+            onClick={() => onSelectNavTab('overview')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeNavTab === 'overview'
+                ? 'bg-white/15 text-white font-bold shadow-sm'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Zap className={`w-4 h-4 mb-0.5 ${activeNavTab === 'overview' ? 'text-emerald-400' : ''}`} />
+            <span>Início</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectNavTab('instances')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeNavTab === 'instances'
+                ? 'bg-white/15 text-white font-bold shadow-sm'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Bot className={`w-4 h-4 mb-0.5 ${activeNavTab === 'instances' ? 'text-cyan-400' : ''}`} />
+            <span>Apps</span>
+          </button>
+
+          {/* Botão Central Destacado de Criar Nova Instância */}
+          <button
+            type="button"
+            onClick={onOpenDeploy}
+            className="flex items-center justify-center w-11 h-11 -mt-4 rounded-full bg-gradient-to-tr from-cyan-400 to-emerald-400 text-black shadow-[0_0_20px_rgba(34,211,238,0.5)] border-2 border-black active:scale-95 transition-transform"
+            title="Nova Aplicação (Bot ou Site)"
+          >
+            <Plus className="w-6 h-6 text-black stroke-[3]" />
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectNavTab('subdomains')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeNavTab === 'subdomains'
+                ? 'bg-white/15 text-white font-bold shadow-sm'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Globe className={`w-4 h-4 mb-0.5 ${activeNavTab === 'subdomains' ? 'text-emerald-400' : ''}`} />
+            <span>Sites</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => onSelectNavTab('plans')}
+            className={`flex flex-col items-center justify-center py-1.5 px-3 rounded-2xl transition-all ${
+              activeNavTab === 'plans'
+                ? 'bg-white/15 text-white font-bold shadow-sm'
+                : 'text-neutral-400 hover:text-white'
+            }`}
+          >
+            <Shield className={`w-4 h-4 mb-0.5 ${activeNavTab === 'plans' ? 'text-amber-400' : ''}`} />
+            <span>Planos</span>
+          </button>
+        </nav>
       )}
     </header>
   );

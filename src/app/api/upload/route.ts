@@ -15,6 +15,12 @@ export async function POST(req: NextRequest) {
     const file = formData.get('file') as File | null;
     const manualToken = formData.get('token') as string | null;
     const customEnvRaw = formData.get('env') as string | null;
+    const customName = formData.get('name') as string | null;
+    const customType = formData.get('type') as string | null; // 'bot' | 'site'
+    const customSubdomain = formData.get('subdomain') as string | null;
+    const customRam = formData.get('ram') as string | null;
+    const customMain = formData.get('main') as string | null;
+    const customPlatform = formData.get('platform') as string | null;
 
     if (!file) {
       return NextResponse.json({ error: 'Nenhum arquivo enviado.' }, { status: 400 });
@@ -42,6 +48,36 @@ export async function POST(req: NextRequest) {
     // Processamento do Universal Shim e extração profunda de metadados
     const shimResult = await parseAndShimZip(fileBuffer);
     const inspected = await inspectZipBot(zip, manualToken || shimResult.metadata.token || parsedCustomEnv['DISCORD_TOKEN'] || parsedCustomEnv['BOT_TOKEN'] || undefined);
+
+    // Aplica eventuais overrides manuais do Assistente Passo a Passo
+    const isSiteApp = customType === 'site' || inspected.isSite || !!customSubdomain;
+    if (customType === 'site') inspected.isSite = true;
+    if (customName?.trim()) inspected.name = customName.trim();
+    if (customSubdomain?.trim()) inspected.subdomain = customSubdomain.trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 32);
+    if (customMain?.trim()) inspected.mainFile = customMain.trim();
+    if (customRam) {
+      const pRam = parseInt(customRam, 10);
+      if (!isNaN(pRam)) inspected.ramLimitMb = Math.max(100, Math.min(pRam, 8192));
+    }
+    if (customPlatform === 'TELEGRAM') inspected.platform = 'TELEGRAM';
+    else if (customPlatform === 'DISCORD') inspected.platform = 'DISCORD';
+
+    // Se foram passados parâmetros manuais ou se não tinha config, injeta aethel.config atualizado
+    if (customName || customType || customSubdomain || customRam || customMain || !inspected.hasConfigFile) {
+      const configLines = [
+        `NAME=${inspected.name}`,
+        `TYPE=${isSiteApp ? 'site' : 'bot'}`,
+        `MAIN=${inspected.mainFile || 'index.js'}`,
+        `RAM=${inspected.ramLimitMb}`,
+      ];
+      if (isSiteApp && inspected.subdomain) {
+        configLines.push(`SUBDOMAIN=${inspected.subdomain}`);
+      } else if (!isSiteApp) {
+        configLines.push(`PLATFORM=${inspected.platform}`);
+      }
+      const configContent = configLines.join('\n') + '\n';
+      zip.file('aethel.config', configContent);
+    }
 
     // Se discloud.config estiver faltando, cria e injeta automaticamente
     if (!inspected.hasDiscloudConfig) {
@@ -92,7 +128,10 @@ export async function POST(req: NextRequest) {
       }, { status: 413 });
     }
 
-    const effectiveToken = inspected.token || shimResult.metadata.token;
+    let effectiveToken = inspected.token || shimResult.metadata.token || manualToken;
+    if (!effectiveToken && isSiteApp) {
+      effectiveToken = `site:${inspected.subdomain || inspected.name}`;
+    }
 
     if (!effectiveToken) {
       return NextResponse.json({

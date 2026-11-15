@@ -222,7 +222,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
           bot_name: name.trim(),
           platform,
           token: token.trim(),
-          ram_limit_mb: Math.min(Number(ram) || 100, 100),
+          ram_limit_mb: Math.min(Number(ram) || 100, totalQuotaMb),
           main_file: mainFile.trim() || 'index.js',
           config_type: configType,
           assigned_node: 'farol-alpha',

@@ -7,7 +7,7 @@ const MERCADOPAGO_ACCESS_TOKEN = process.env.MERCADOPAGO_ACCESS_TOKEN || '';
 
 /**
  * GET /api/payments/status?paymentId=ORD...
- * Consulta se o Pix foi pago no Mercado Pago (Orders API ou Payments API) e libera os recursos
+ * Consulta se o Pix foi pago no Mercado Pago (Orders API ou Payments API) e entrega as GBs/RAM ao usuário
  */
 export async function GET(req: NextRequest) {
   try {
@@ -83,30 +83,39 @@ export async function GET(req: NextRequest) {
       } catch (_) {}
     }
 
+    // ========================================================
+    // ENTREGA IMEDIATA DE RAM (GBs) NO BANCO DO USUÁRIO
+    // ========================================================
     if (isApproved) {
-      // Atualiza pagamento no banco
       try {
-        await supabase
-          .from('aethel_payments')
-          .update({ status: 'approved', updated_at: new Date().toISOString() })
-          .eq('payment_id', String(paymentId));
-      } catch (_) {}
-
-      // Registra bônus de RAM no usuário
-      try {
-        await supabase.from('aethel_user_bonus').insert({
-          user_id: userId,
-          bonus_ram_mb: ramMb,
-          reason: `Assinatura Plano ${planId.toUpperCase()} (Mercado Pago #${paymentId})`,
-          expires_at: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString(),
-        });
-      } catch (_) {}
+        // Atualiza a cota real no perfil (tabela profiles do Supabase)
+        if (userId && userId !== 'default-user' && userId !== 'anon') {
+          await supabase
+            .from('profiles')
+            .update({ 
+              quota_limit_mb: ramMb, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', userId);
+        } else {
+          // Atualiza perfil ativo
+          await supabase
+            .from('profiles')
+            .update({ 
+              quota_limit_mb: ramMb, 
+              updated_at: new Date().toISOString() 
+            })
+            .not('id', 'is', null);
+        }
+      } catch (profErr) {
+        console.error('[MercadoPago] Erro ao atualizar quota em profiles:', profErr);
+      }
 
       // Registra nos logs da plataforma
       try {
         await supabase.from('aethel_logs').insert({
           log_level: 'INFO',
-          message: `[Mercado Pago] Pagamento Pix #${paymentId} APROVADO! +${ramMb} MB de RAM liberados para o usuário.`,
+          message: `[Mercado Pago] Pagamento #${paymentId} APROVADO! +${ramMb} MB de RAM (Plano ${planId.toUpperCase()}) entregues com sucesso ao usuário.`,
         });
       } catch (_) {}
     }

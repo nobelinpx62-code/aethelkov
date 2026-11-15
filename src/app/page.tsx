@@ -52,7 +52,8 @@ export default function DashboardPage() {
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
-  // Estados de Presentes & Promo Codes de RAM
+  // Estados de Cota Real (Mercado Pago), Presentes & Promo Codes de RAM
+  const [purchasedQuotaMb, setPurchasedQuotaMb] = useState<number>(100);
   const [extraRamMb, setExtraRamMb] = useState<number>(0);
   const [pendingGift, setPendingGift] = useState<UserGift | null>(null);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState<boolean>(false);
@@ -94,13 +95,26 @@ export default function DashboardPage() {
     }
   }, []);
 
-  // Monitora e carrega bônus e presentes do usuário logado
+  // Monitora e carrega cota contratada (Mercado Pago), bônus e presentes do usuário logado
   useEffect(() => {
     if (!currentUser) {
+      setPurchasedQuotaMb(100);
       setExtraRamMb(0);
       setPendingGift(null);
       return;
     }
+
+    // Carrega cota contratada via Mercado Pago na tabela profiles do Supabase
+    supabase
+      .from('profiles')
+      .select('quota_limit_mb')
+      .eq('id', currentUser.id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data?.quota_limit_mb) {
+          setPurchasedQuotaMb(Math.max(data.quota_limit_mb, 100));
+        }
+      });
 
     const key = getUserKey(currentUser);
     const bonus = getUserBonusData(key);
@@ -234,7 +248,7 @@ export default function DashboardPage() {
   };
 
   // Cálculo de Cota de Memória Total e Reserva por Aplicações (mínimo 100 MB por bot)
-  const totalQuotaMb = 100 + extraRamMb;
+  const totalQuotaMb = Math.max(purchasedQuotaMb, 100) + extraRamMb;
   const totalReservedRam = bots.reduce((sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100), 0);
   const isQuotaExceeded = totalReservedRam >= totalQuotaMb;
 
@@ -329,7 +343,25 @@ export default function DashboardPage() {
               />
             ) : activeNavTab === 'plans' ? (
               /* Aba de Planos, Recursos e Assinaturas */
-              <PlansView currentUser={currentUser} onOpenDeploy={() => setIsDeployOpen(true)} />
+              <PlansView 
+                currentUser={currentUser} 
+                onOpenDeploy={() => setIsDeployOpen(true)}
+                onPlanPurchased={() => {
+                  fetchBotsAndStats();
+                  if (currentUser?.id) {
+                    supabase
+                      .from('profiles')
+                      .select('quota_limit_mb')
+                      .eq('id', currentUser.id)
+                      .maybeSingle()
+                      .then(({ data }) => {
+                        if (data?.quota_limit_mb) {
+                          setPurchasedQuotaMb(Math.max(data.quota_limit_mb, 100));
+                        }
+                      });
+                  }
+                }}
+              />
             ) : activeNavTab === 'settings' ? (
               /* Aba de Configurações, Chave de API, Documentação, Termos e Marca */
               <AethelSettingsView currentUser={currentUser} />

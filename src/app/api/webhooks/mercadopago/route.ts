@@ -11,7 +11,7 @@ const MERCADOPAGO_WEBHOOK_SECRET = process.env.MERCADOPAGO_WEBHOOK_SECRET || '';
  * Validação opcional da assinatura x-signature do Mercado Pago
  */
 function verifySignature(req: NextRequest, dataId: string): boolean {
-  if (!MERCADOPAGO_WEBHOOK_SECRET) return true; // Se não configurado, segue com a consulta direta à API
+  if (!MERCADOPAGO_WEBHOOK_SECRET) return true;
 
   const xSignature = req.headers.get('x-signature');
   const xRequestId = req.headers.get('x-request-id');
@@ -37,7 +37,7 @@ function verifySignature(req: NextRequest, dataId: string): boolean {
 
     return crypto.timingSafeEqual(Buffer.from(computedHash, 'hex'), Buffer.from(receivedHash, 'hex'));
   } catch {
-    return true; // Fallback seguro
+    return true;
   }
 }
 
@@ -58,7 +58,6 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ status: 'ignored', message: 'No ID found' });
     }
 
-    // Valida assinatura se o header estiver presente
     if (!verifySignature(req, String(id))) {
       console.warn('[MercadoPago Webhook] Assinatura x-signature inválida para ID:', id);
       return NextResponse.json({ error: 'Assinatura inválida' }, { status: 401 });
@@ -115,26 +114,39 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // ========================================================
+    // ENTREGA AUTOMÁTICA DE RAM AO CLIENTE VIA WEBHOOK
+    // ========================================================
     if (isApproved) {
-      // Atualiza pagamento no banco
-      await supabase
-        .from('aethel_payments')
-        .update({ status: 'approved', updated_at: new Date().toISOString() })
-        .eq('payment_id', String(id));
-
-      // Credita a RAM no usuário
-      await supabase.from('aethel_user_bonus').insert({
-        user_id: userId,
-        bonus_ram_mb: ramMb,
-        reason: `Assinatura Plano ${planId.toUpperCase()} (Mercado Pago Webhook #${id})`,
-        expires_at: new Date(Date.now() + 31 * 24 * 60 * 60 * 1000).toISOString(),
-      });
+      try {
+        if (userId && userId !== 'default-user' && userId !== 'anon') {
+          await supabase
+            .from('profiles')
+            .update({ 
+              quota_limit_mb: ramMb, 
+              updated_at: new Date().toISOString() 
+            })
+            .eq('id', userId);
+        } else {
+          await supabase
+            .from('profiles')
+            .update({ 
+              quota_limit_mb: ramMb, 
+              updated_at: new Date().toISOString() 
+            })
+            .not('id', 'is', null);
+        }
+      } catch (profErr) {
+        console.error('[MercadoPago Webhook] Erro ao atualizar quota_limit_mb em profiles:', profErr);
+      }
 
       // Registra nos logs
-      await supabase.from('aethel_logs').insert({
-        log_level: 'INFO',
-        message: `[Webhook Mercado Pago] Pagamento #${id} de R$ ${amount} APROVADO! +${ramMb} MB de RAM liberados instantaneamente.`,
-      });
+      try {
+        await supabase.from('aethel_logs').insert({
+          log_level: 'INFO',
+          message: `[Webhook Mercado Pago] Pagamento #${id} de R$ ${amount} APROVADO! +${ramMb} MB de RAM liberados instantaneamente para o usuário.`,
+        });
+      } catch (_) {}
     }
 
     return NextResponse.json({ status: 'ok', approved: isApproved, id });

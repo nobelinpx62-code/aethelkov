@@ -50,7 +50,15 @@ export async function POST(req: NextRequest) {
       (b) => b.token_encrypted === token || b.bot_name.toLowerCase() === bot_name.toLowerCase()
     );
 
-    const userQuotaMb = 100;
+    // Consulta a cota real contratada pelo usuário no banco
+    const { data: profile } = await supabase
+      .from('profiles')
+      .select('quota_limit_mb')
+      .limit(1)
+      .maybeSingle();
+
+    const userQuotaMb = Math.max(profile?.quota_limit_mb || 100, 100);
+    const maxAllowedApps = Math.max(1, Math.floor(userQuotaMb / 100));
     const requiredRam = Math.max(ram_limit_mb || 100, 100);
 
     if (!matchingBot) {
@@ -59,9 +67,9 @@ export async function POST(req: NextRequest) {
         0
       );
 
-      if (currentReservedRam + requiredRam > userQuotaMb || (existingBots || []).length >= 1) {
+      if (currentReservedRam + requiredRam > userQuotaMb || (existingBots || []).length >= maxAllowedApps) {
         return NextResponse.json({
-          error: `Limite de Cota de Memória Atingido! Seu plano possui ${userQuotaMb} MB de limite e o consumo mínimo por aplicação é 100 MB. Você já possui ${(existingBots || []).length} aplicação ativa consumindo ${currentReservedRam} MB. Para criar uma nova aplicação, você precisa excluir a existente primeiro.`,
+          error: `Limite de Cota de Memória Atingido! Seu plano possui ${userQuotaMb} MB de limite e você já possui ${(existingBots || []).length} aplicação(ões) ativa(s) consumindo ${currentReservedRam} MB (limite: ${maxAllowedApps} instâncias). Para hospedar mais bots ou bots mais pesados, contrate um plano na aba Planos.`,
         }, { status: 403 });
       }
     }

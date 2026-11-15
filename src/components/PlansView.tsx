@@ -23,9 +23,10 @@ import {
 interface PlansViewProps {
   currentUser?: any;
   onOpenDeploy?: () => void;
+  onPlanPurchased?: () => void;
 }
 
-export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy }) => {
+export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy, onPlanPurchased }) => {
   const [selectedPlanForModal, setSelectedPlanForModal] = useState<any | null>(null);
   
   // Estados do Pix Interativo
@@ -45,13 +46,14 @@ export const PlansView: React.FC<PlansViewProps> = ({ currentUser, onOpenDeploy 
         const data = await res.json();
         if (data.approved) {
           setIsPaid(true);
+          onPlanPurchased?.();
           clearInterval(interval);
         }
       } catch (_) {}
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [pixData?.paymentId, isPaid]);
+  }, [pixData?.paymentId, isPaid, onPlanPurchased]);
 
   // Função para chamar o backend e gerar o Pix via Mercado Pago
   const handleGeneratePix = async (plan: any) => {

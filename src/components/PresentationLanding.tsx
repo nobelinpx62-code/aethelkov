@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import Link from 'next/link';
 import { 
   Zap, 
   ShieldCheck, 
@@ -425,14 +426,49 @@ export const PresentationLanding: React.FC<PresentationLandingProps> = ({ onGoTo
         </div>
       </section>
 
-      {/* Rodapé Oficial */}
-      <footer className="max-w-6xl mx-auto w-full pt-10 border-t border-white/10 text-center space-y-2 font-mono text-xs text-neutral-400">
-        <p className="text-neutral-300 font-semibold">
-          Aethel Kov &bull; Plataforma de Hospedagem Contínua de Alta Performance
-        </p>
-        <p className="text-[11px] text-neutral-500">
-          Alta Disponibilidade 24/7 &bull; Runner Core Desacoplado &bull; Cota Gratuita de 100 MB
-        </p>
+      {/* Rodapé Oficial Institucional */}
+      <footer className="max-w-6xl mx-auto w-full pt-10 pb-6 border-t border-white/10 space-y-4 font-sans text-xs text-neutral-400">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="flex items-center gap-2">
+            <div className="w-5 h-5 rounded-md bg-emerald-500/20 border border-emerald-500/40 flex items-center justify-center">
+              <Terminal className="w-3 h-3 text-emerald-400" />
+            </div>
+            <span className="text-white font-semibold text-sm">Aethelkov</span>
+            <span className="text-neutral-500 text-xs font-mono">&bull; linkthelkov.online</span>
+          </div>
+
+          {/* Links Institucionais Transparentes para Google e Usuários */}
+          <nav className="flex flex-wrap items-center justify-center gap-4 text-xs font-medium text-neutral-400">
+            <Link href="/sobre" className="hover:text-emerald-400 transition-colors">
+              Sobre Nós
+            </Link>
+            <Link href="/termos" className="hover:text-emerald-400 transition-colors">
+              Termos de Uso
+            </Link>
+            <Link href="/privacidade" className="hover:text-emerald-400 transition-colors">
+              Política de Privacidade
+            </Link>
+            <Link href="/contato" className="hover:text-emerald-400 transition-colors">
+              Contato & Suporte
+            </Link>
+            <a 
+              href="/.well-known/security.txt" 
+              target="_blank" 
+              rel="noopener noreferrer"
+              className="hover:text-emerald-400 transition-colors inline-flex items-center gap-1 font-mono text-[11px]"
+            >
+              security.txt
+            </a>
+          </nav>
+        </div>
+
+        <div className="pt-4 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between gap-2 text-[11px] text-neutral-500 font-mono text-center sm:text-left">
+          <p>© {new Date().getFullYear()} Aethelkov Cloud. Todos os direitos reservados.</p>
+          <p className="flex items-center justify-center gap-2">
+            <span className="w-2 h-2 rounded-full bg-emerald-400 inline-block animate-pulse"></span>
+            <span>Domínio Oficial Verificado &bull; SSL TLS 1.3 Ativo</span>
+          </p>
+        </div>
       </footer>
     </div>
   );

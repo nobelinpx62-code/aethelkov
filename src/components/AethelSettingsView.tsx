@@ -594,14 +594,25 @@ print(response.json())`}
       {activeSection === 'privacy' && (
         <div className="space-y-6">
           <div className="apple-glass-card rounded-3xl p-6 sm:p-8 border border-white/15 space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2.5">
-                <ShieldCheck className="w-5 h-5 text-emerald-400" />
-                <span>Política de Privacidade da Aethel Cloud</span>
-              </h2>
-              <p className="text-xs sm:text-sm text-neutral-400 mt-1">
-                Última atualização: Novembro de 2026 &bull; Compromisso de isolamento total e sigilo absoluto.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2.5">
+                  <ShieldCheck className="w-5 h-5 text-emerald-400" />
+                  <span>Política de Privacidade da Aethel Cloud</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                  Última atualização: Novembro de 2026 &bull; Compromisso de isolamento total e sigilo absoluto.
+                </p>
+              </div>
+              <a
+                href="/privacidade"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-neutral-300 hover:text-white transition-all w-fit"
+              >
+                <span>Versão Pública</span>
+                <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
+              </a>
             </div>
 
             <div className="space-y-6 text-xs sm:text-sm text-neutral-300 leading-relaxed font-sans">
@@ -655,14 +666,25 @@ print(response.json())`}
       {activeSection === 'terms' && (
         <div className="space-y-6">
           <div className="apple-glass-card rounded-3xl p-6 sm:p-8 border border-white/15 space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold text-white flex items-center gap-2.5">
-                <FileText className="w-5 h-5 text-amber-400" />
-                <span>Termos de Uso da Malha Aethel</span>
-              </h2>
-              <p className="text-xs sm:text-sm text-neutral-400 mt-1">
-                Diretrizes de uso aceitável para manter a estabilidade de alta performance da infraestrutura.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-white flex items-center gap-2.5">
+                  <FileText className="w-5 h-5 text-amber-400" />
+                  <span>Termos de Uso da Malha Aethel</span>
+                </h2>
+                <p className="text-xs sm:text-sm text-neutral-400 mt-1">
+                  Diretrizes de uso aceitável para manter a estabilidade de alta performance da infraestrutura.
+                </p>
+              </div>
+              <a
+                href="/termos"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 text-xs text-neutral-300 hover:text-white transition-all w-fit"
+              >
+                <span>Versão Pública</span>
+                <ExternalLink className="w-3.5 h-3.5 text-neutral-400" />
+              </a>
             </div>
 
             <div className="space-y-6 text-xs sm:text-sm text-neutral-300 leading-relaxed">

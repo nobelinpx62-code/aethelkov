@@ -12,8 +12,10 @@ export const config = {
      * - badge.svg
      * - robots.txt
      * - sitemap.xml
+     * - manifest.json
+     * - .well-known
      */
-    '/((?!api|_next/static|_next/image|favicon.ico|icon.svg|badge.svg|robots.txt|sitemap.xml).*)',
+    '/((?!api|_next/static|_next/image|favicon.ico|icon.svg|badge.svg|robots.txt|sitemap.xml|manifest.json|.well-known).*)',
   ],
 };
 

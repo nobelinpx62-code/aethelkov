@@ -1,0 +1,10 @@
+# Security Disclosure Policy - Aethelkov Cloud
+# RFC 9116 compliant security contact file
+Contact: mailto:seguranca@linkthelkov.online
+Contact: mailto:abuse@linkthelkov.online
+Contact: mailto:suporte@linkthelkov.online
+Expires: 2027-12-31T23:59:59.000Z
+Preferred-Languages: pt, en
+Canonical: https://linkthelkov.online/.well-known/security.txt
+Policy: https://linkthelkov.online/termos
+Acknowledgments: https://linkthelkov.online/sobre

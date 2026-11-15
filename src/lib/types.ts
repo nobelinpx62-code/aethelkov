@@ -15,6 +15,9 @@ export interface AethelBot {
   ram_limit_mb: number;
   main_file: string;
   config_type: 'aethel' | 'discloud';
+  app_type?: 'bot' | 'site';
+  subdomain?: string;
+  env_vars?: Record<string, string>;
   storage_size_bytes?: number;
   current_ram_mb?: number;
   current_cpu_percent?: number;
@@ -46,6 +49,7 @@ export interface ParsedConfig {
   name: string;
   platform: BotPlatform;
   type: string;
+  subdomain?: string;
   main: string;
   ram: number;
   autorestart: boolean;

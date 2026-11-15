@@ -3,6 +3,8 @@ import { supabase } from '@/lib/supabase';
 import { inspectZipBot } from '@/lib/botInspector';
 import { parseAndShimZip } from '@/lib/loader/universalParser';
 import { checkUserSubscription } from '@/lib/subscriptionManager';
+import { registerSubdomain } from '@/lib/subdomainManager';
+import { saveAppEnvVars } from '@/lib/envVarsService';
 import JSZip from 'jszip';
 
 const MAX_STORAGE_BYTES = 100 * 1024 * 1024; // 100 MB limite estrito
@@ -184,6 +186,34 @@ export async function POST(req: NextRequest) {
         .from('aethel_bots')
         .update({ storage_size_bytes: file.size })
         .eq('id', botId);
+
+      // Se for aplicação do tipo Site Web, vincula nó com prefixo site: e registra subdomínio
+      if (inspected.isSite) {
+        const assignedNode = inspected.subdomain ? `site:${inspected.subdomain}` : 'site:app';
+        try {
+          await supabase
+            .from('aethel_bots')
+            .update({ assigned_node: assignedNode })
+            .eq('id', botId);
+        } catch (_) {}
+
+        if (inspected.subdomain) {
+          try {
+            await registerSubdomain({
+              subdomain: inspected.subdomain,
+              appId: botId,
+              appName: inspected.name,
+            });
+          } catch (_) {}
+        }
+      }
+
+      // Persiste variáveis de ambiente combinadas no serviço de banco
+      if (Object.keys(combinedEnv).length > 0) {
+        try {
+          await saveAppEnvVars(botId, combinedEnv, inspected.name);
+        } catch (_) {}
+      }
 
       try {
         await supabase

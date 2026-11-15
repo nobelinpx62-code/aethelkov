@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
 import { checkUserSubscription } from '@/lib/subscriptionManager';
+import { registerSubdomain } from '@/lib/subdomainManager';
+import { saveAppEnvVars } from '@/lib/envVarsService';
 
 export async function GET(req: NextRequest) {
   try {
@@ -36,10 +38,29 @@ export async function GET(req: NextRequest) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { bot_name, platform, token, ram_limit_mb, main_file, config_type, assigned_node } = body;
+    const { 
+      bot_name, 
+      platform: rawPlatform, 
+      token: rawToken, 
+      ram_limit_mb, 
+      main_file, 
+      config_type, 
+      assigned_node: rawAssignedNode,
+      app_type,
+      subdomain,
+      env_vars,
+      userId,
+    } = body;
 
-    if (!bot_name || !token || !platform) {
-      return NextResponse.json({ error: 'Nome, token e plataforma são obrigatórios.' }, { status: 400 });
+    const isSite = app_type === 'site' || rawAssignedNode?.startsWith('site:') || !!subdomain;
+    const platform = isSite ? 'DISCORD' : (rawPlatform || 'DISCORD');
+    const token = rawToken || (isSite ? `site:${subdomain || bot_name}` : '');
+    const assigned_node = isSite 
+      ? (subdomain ? `site:${subdomain.toLowerCase()}` : 'site:app')
+      : (rawAssignedNode || 'farol-alpha');
+
+    if (!bot_name || (!token && !isSite)) {
+      return NextResponse.json({ error: 'Nome e parâmetros obrigatórios não preenchidos.' }, { status: 400 });
     }
 
     // Validação de cota de memória RAM: 100 MB por aplicação
@@ -52,7 +73,7 @@ export async function POST(req: NextRequest) {
     );
 
     // Consulta a cota real contratada pelo usuário (verificando assinatura ativa nos logs e no perfil)
-    const sub = await checkUserSubscription();
+    const sub = await checkUserSubscription(userId);
     const userQuotaMb = Math.max(sub.isActive ? sub.ramMb : 100, 100);
     const maxAllowedApps = Math.max(1, Math.floor(userQuotaMb / 100));
     const requiredRam = Math.max(ram_limit_mb || 100, 100);
@@ -65,7 +86,7 @@ export async function POST(req: NextRequest) {
 
       if (currentReservedRam + requiredRam > userQuotaMb || (existingBots || []).length >= maxAllowedApps) {
         return NextResponse.json({
-          error: `Limite de Cota de Memória Atingido! Seu plano possui ${userQuotaMb} MB de limite e você já possui ${(existingBots || []).length} aplicação(ões) ativa(s) consumindo ${currentReservedRam} MB (limite: ${maxAllowedApps} instâncias). Para hospedar mais bots ou bots mais pesados, contrate um plano na aba Planos.`,
+          error: `Limite de Cota de Memória Atingido! Seu plano possui ${userQuotaMb} MB de limite e você já possui ${(existingBots || []).length} aplicação(ões) ativa(s) consumindo ${currentReservedRam} MB (limite: ${maxAllowedApps} instâncias). Para hospedar mais bots ou sites, contrate um plano na aba Planos.`,
         }, { status: 403 });
       }
     }
@@ -83,22 +104,23 @@ export async function POST(req: NextRequest) {
           platform,
           token_encrypted: token,
           ram_limit_mb: requiredRam,
-          main_file: main_file || 'index.js',
+          main_file: main_file || (isSite ? 'index.js' : 'index.js'),
           config_type: config_type || 'aethel',
+          assigned_node,
           updated_at: new Date().toISOString(),
         })
         .eq('id', botId);
     } else {
       // Executa a função RPC do Supabase
       const { data, error } = await supabase.rpc('register_or_update_bot', {
-        p_user_id: 'default-user',
+        p_user_id: userId || 'default-user',
         p_bot_name: bot_name,
         p_platform: platform,
         p_token_encrypted: token,
         p_ram_limit_mb: requiredRam,
         p_main_file: main_file || 'index.js',
         p_config_type: config_type || 'aethel',
-        p_assigned_node: assigned_node || 'farol-alpha',
+        p_assigned_node: assigned_node,
       });
 
       if (error) {
@@ -107,6 +129,35 @@ export async function POST(req: NextRequest) {
 
       resultBotData = data;
       botId = data?.bot_id;
+
+      // Se for site, garante o assigned_node atualizado
+      if (isSite && botId) {
+        try {
+          await supabase
+            .from('aethel_bots')
+            .update({ assigned_node })
+            .eq('id', botId);
+        } catch (_) {}
+      }
+    }
+
+    // Se tiver subdomínio definido, registra no gerenciador de subdomínios
+    if (subdomain && botId) {
+      try {
+        await registerSubdomain({
+          subdomain,
+          appId: botId,
+          appName: bot_name,
+          userId,
+        });
+      } catch (_) {}
+    }
+
+    // Se tiver variáveis de ambiente, salva de verdade
+    if (env_vars && typeof env_vars === 'object' && botId) {
+      try {
+        await saveAppEnvVars(botId, env_vars, bot_name);
+      } catch (_) {}
     }
 
     // Se for Discord, despacha SPAWN_BOT para o nó do Farol via Supabase Realtime Broadcast

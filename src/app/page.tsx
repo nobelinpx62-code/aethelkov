@@ -14,6 +14,7 @@ import { GiftCelebrationModal } from '@/components/GiftCelebrationModal';
 import { UserProfileModal } from '@/components/UserProfileModal';
 import { AethelSettingsView } from '@/components/AethelSettingsView';
 import { PlansView } from '@/components/PlansView';
+import { SubdomainsView } from '@/components/SubdomainsView';
 import { AethelBot, ClusterStats } from '@/lib/types';
 import { CheckCircle2, Plus } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -39,7 +40,7 @@ export default function DashboardPage() {
   const [selectedBotId, setSelectedBotId] = useState<string | null>(null);
   const [focusedBotId, setFocusedBotId] = useState<string | null>(null);
   const focusedBot = bots.find((b) => b.id === focusedBotId) || null;
-  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'plans' | 'settings'>('overview');
+  const [activeNavTab, setActiveNavTab] = useState<'overview' | 'instances' | 'subdomains' | 'plans' | 'settings'>('overview');
   const [isDeployOpen, setIsDeployOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [notification, setNotification] = useState<string | null>(null);
@@ -354,6 +355,16 @@ export default function DashboardPage() {
                 onToggleStatus={handleToggleStatus}
                 onRefresh={fetchBotsAndStats}
                 onDeleteBot={handleDeleteBot}
+              />
+            ) : activeNavTab === 'subdomains' ? (
+              /* Aba de Hospedagem Web & Subdomínios */
+              <SubdomainsView
+                currentUser={currentUser}
+                bots={bots}
+                onOpenDeploy={() => setIsDeployOpen(true)}
+                onOpenBotDetails={(id) => setFocusedBotId(id)}
+                onOpenPlans={() => setActiveNavTab('plans')}
+                onRefresh={fetchBotsAndStats}
               />
             ) : activeNavTab === 'plans' ? (
               /* Aba de Planos, Recursos e Assinaturas */

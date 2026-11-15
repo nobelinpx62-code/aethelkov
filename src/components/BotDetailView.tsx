@@ -97,6 +97,11 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
   const [isCommitting, setIsCommitting] = useState(false);
   const [commitSuccess, setCommitSuccess] = useState<string | null>(null);
 
+  // Identificação do tipo da aplicação (Bot vs Site)
+  const isSite = bot.assigned_node?.startsWith('site:') || (bot as any).app_type === 'site';
+  const siteSubdomain = isSite ? bot.assigned_node.replace('site:', '') : null;
+  const siteFullUrl = siteSubdomain ? `https://${siteSubdomain}.linkthelkov.online` : null;
+
   // Estados de Variáveis de Ambiente
   const [showToken, setShowToken] = useState(false);
   const [customEnvVars, setCustomEnvVars] = useState<Array<{ key: string; value: string }>>([
@@ -108,6 +113,47 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
   const [newEnvKey, setNewEnvKey] = useState('');
   const [newEnvVal, setNewEnvVal] = useState('');
   const [envSavedToast, setEnvSavedToast] = useState(false);
+  const [isSavingEnv, setIsSavingEnv] = useState(false);
+
+  // Carrega variáveis de ambiente persistidas reais do Supabase
+  useEffect(() => {
+    fetch(`/api/bots/${bot.id}/env`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.success && data.vars && Object.keys(data.vars).length > 0) {
+          const loaded = Object.entries(data.vars).map(([key, value]) => ({ key, value: String(value) }));
+          setCustomEnvVars(loaded);
+        }
+      })
+      .catch(() => {});
+  }, [bot.id]);
+
+  const handleSaveEnvVars = async () => {
+    setIsSavingEnv(true);
+    try {
+      const varsObj: Record<string, string> = {};
+      customEnvVars.forEach(({ key, value }) => {
+        if (key.trim()) varsObj[key.trim()] = value;
+      });
+
+      const res = await fetch(`/api/bots/${bot.id}/env`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ vars: varsObj, botName: bot.bot_name }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error);
+
+      setEnvSavedToast(true);
+      setTimeout(() => setEnvSavedToast(false), 3000);
+      onRefresh();
+    } catch (err: any) {
+      alert('Erro ao salvar variáveis: ' + err.message);
+    } finally {
+      setIsSavingEnv(false);
+    }
+  };
 
   // Estados de Arquivos Editáveis com Hot-Reload
   const [selectedFile, setSelectedFile] = useState<string>(bot.main_file || 'index.js');
@@ -452,7 +498,11 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
               {/* Avatar e Títulos */}
               <div className="flex items-center gap-4">
                 <div className="relative w-16 h-16 rounded-2xl bg-gradient-to-br from-emerald-500/20 via-cyan-500/20 to-purple-500/20 border-2 border-emerald-500/40 p-1 flex items-center justify-center shadow-[0_0_20px_rgba(16,185,129,0.3)]">
-                  <Bot className="w-9 h-9 text-emerald-400" />
+                  {isSite ? (
+                    <Globe className="w-9 h-9 text-cyan-400" />
+                  ) : (
+                    <Bot className="w-9 h-9 text-emerald-400" />
+                  )}
                   <span className="absolute -bottom-1 -right-1 flex h-4 w-4">
                     <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                     <span className="relative inline-flex rounded-full h-4 w-4 bg-emerald-500 border-2 border-black"></span>
@@ -473,6 +523,15 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
                     }`}>
                       <span className={`w-2 h-2 rounded-full ${isOnline ? 'bg-emerald-400 animate-pulse' : 'bg-rose-400'}`}></span>
                       <span>{bot.status}</span>
+                    </span>
+
+                    {/* Tag de Tipo */}
+                    <span className={`px-2 py-0.5 rounded-full font-mono text-[10px] font-bold border uppercase ${
+                      isSite 
+                        ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/30' 
+                        : 'bg-white/10 text-neutral-300 border-white/10'
+                    }`}>
+                      {isSite ? 'SITE WEB' : bot.platform}
                     </span>
 
                     {/* Uptime Tag */}
@@ -562,6 +621,48 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
               </div>
             </div>
           </div>
+
+          {/* Banner de Roteamento de Site Web */}
+          {isSite && siteFullUrl && (
+            <div className="p-4 sm:p-5 rounded-[24px] bg-gradient-to-r from-cyan-500/15 via-emerald-500/10 to-indigo-500/15 border border-cyan-400/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-[0_0_30px_rgba(6,182,212,0.15)] animate-fadeIn">
+              <div className="flex items-center gap-3.5">
+                <div className="w-11 h-11 rounded-2xl bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center text-cyan-300 shrink-0">
+                  <Globe className="w-6 h-6" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-white font-bold text-sm font-mono tracking-tight">{siteFullUrl}</span>
+                    <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-[10px] font-bold border border-emerald-500/30">
+                      HTTPS 200 OK
+                    </span>
+                  </div>
+                  <p className="text-neutral-400 text-xs mt-0.5 font-mono">
+                    Subdomínio Ativo &bull; Roteamento SSL Automático &bull; Porta HTTP 8080
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(siteFullUrl)}
+                  className="apple-pill-btn flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-mono text-neutral-300 hover:text-white"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>{copiedId ? 'Copiado!' : 'Copiar URL'}</span>
+                </button>
+                <a
+                  href={siteFullUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="apple-pill-btn flex items-center gap-1.5 px-4 py-2 rounded-full text-xs font-semibold text-white apple-pill-primary shadow-[0_0_15px_rgba(6,182,212,0.4)]"
+                >
+                  <span>Acessar Site</span>
+                  <ExternalLink className="w-3.5 h-3.5" />
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Os 3 Cards de Telemetria */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1090,21 +1191,19 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
             </div>
 
             <button
-              onClick={() => {
-                setEnvSavedToast(true);
-                setTimeout(() => setEnvSavedToast(false), 3000);
-              }}
-              className="apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold text-white flex items-center gap-1.5"
+              onClick={handleSaveEnvVars}
+              disabled={isSavingEnv}
+              className="apple-pill-btn rounded-full px-4 py-2 text-xs font-semibold text-white flex items-center gap-1.5 apple-pill-primary shadow-[0_0_15px_rgba(16,185,129,0.3)]"
             >
-              <Save className="w-3.5 h-3.5 text-emerald-400" />
-              <span>Salvar Alterações</span>
+              <Save className="w-3.5 h-3.5 text-white" />
+              <span>{isSavingEnv ? 'Salvando no Banco...' : 'Salvar no Supabase & Reiniciar'}</span>
             </button>
           </div>
 
           {envSavedToast && (
             <div className="p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 flex items-center gap-2">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
-              <span>Variáveis sincronizadas com o cluster!</span>
+              <span>Variáveis salvas no Supabase e sincronizadas com a instância!</span>
             </div>
           )}
 

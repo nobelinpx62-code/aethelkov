@@ -13,7 +13,8 @@ import {
   Sparkles,
   Key,
   ShieldCheck,
-  Trash2
+  Trash2,
+  Globe
 } from 'lucide-react';
 import { BotPlatform, AethelBot } from '@/lib/types';
 import { inspectZipBot, detectPlatformFromToken, InspectedBotData } from '@/lib/botInspector';
@@ -50,6 +51,8 @@ export const DeployModal: React.FC<DeployModalProps> = ({
   const [showEnvSection, setShowEnvSection] = useState(false);
 
   // Manual States
+  const [manualAppType, setManualAppType] = useState<'bot' | 'site'>('bot');
+  const [manualSubdomain, setManualSubdomain] = useState('');
   const [name, setName] = useState('');
   const [platform, setPlatform] = useState<BotPlatform>('DISCORD');
   const [token, setToken] = useState('');
@@ -76,6 +79,8 @@ export const DeployModal: React.FC<DeployModalProps> = ({
     setNewEnvKey('');
     setNewEnvVal('');
     setShowEnvSection(false);
+    setManualAppType('bot');
+    setManualSubdomain('');
     setName('');
     setPlatform('DISCORD');
     setToken('');
@@ -202,30 +207,46 @@ export const DeployModal: React.FC<DeployModalProps> = ({
   const handleManualCreate = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) {
-      setUploadError('Nome da instância é obrigatório.');
+      setUploadError(manualAppType === 'site' ? 'Nome do site é obrigatório.' : 'Nome da instância é obrigatório.');
       return;
     }
 
-    if (!token.trim()) {
+    if (manualAppType === 'bot' && !token.trim()) {
       setUploadError('Token de autenticação do bot é obrigatório.');
       return;
+    }
+
+    let cleanSub = '';
+    if (manualAppType === 'site') {
+      cleanSub = (manualSubdomain.trim() || name.trim()).toLowerCase().replace(/[^a-z0-9-]/g, '');
+      if (cleanSub.length < 3) {
+        setUploadError('O subdomínio deve conter pelo menos 3 caracteres alfanuméricos.');
+        return;
+      }
     }
 
     setIsUploading(true);
     setUploadError(null);
 
     try {
+      const assignedNode = manualAppType === 'site' 
+        ? `site:${cleanSub}`
+        : 'farol-alpha';
+
       const res = await fetch('/api/bots', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           bot_name: name.trim(),
-          platform,
-          token: token.trim(),
-          ram_limit_mb: Math.min(Number(ram) || 100, totalQuotaMb),
-          main_file: mainFile.trim() || 'index.js',
+          platform: manualAppType === 'site' ? 'DISCORD' : platform,
+          token: manualAppType === 'site' ? (token.trim() || `site:${cleanSub}`) : token.trim(),
+          ram_limit_mb: Math.max(100, Math.min(Number(ram) || 100, totalQuotaMb)),
+          main_file: mainFile.trim() || (manualAppType === 'site' ? 'server.js' : 'index.js'),
           config_type: configType,
-          assigned_node: 'farol-alpha',
+          assigned_node: assignedNode,
+          app_type: manualAppType,
+          subdomain: manualAppType === 'site' ? cleanSub : undefined,
+          env_vars: Object.keys(customEnv).length > 0 ? customEnv : undefined,
         }),
       });
 
@@ -254,10 +275,10 @@ export const DeployModal: React.FC<DeployModalProps> = ({
               <UploadCloud className="w-4 h-4 text-cyan-400" />
             </div>
             <div>
-              <h3 className="text-base sm:text-lg font-bold text-white">Deploy Inteligente de Bots</h3>
+              <h3 className="text-base sm:text-lg font-bold text-white">Deploy de Aplicações & Sites</h3>
               <p className="text-[11px] text-neutral-400 font-mono flex items-center gap-1.5">
                 <Sparkles className="w-3 h-3 text-cyan-400" />
-                <span>Auto-detecção ativa de Telegram & Discord</span>
+                <span>Auto-detecção de Bots (Discord/Telegram) e Sites Web</span>
               </p>
             </div>
           </div>
@@ -383,19 +404,23 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
                     {/* Plataforma Detectada */}
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2.5">
-                      {inspectedData.platform === 'TELEGRAM' ? (
+                      {inspectedData.isSite ? (
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                          <Globe className="w-4 h-4" />
+                        </div>
+                      ) : inspectedData.platform === 'TELEGRAM' ? (
                         <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-cyan-500/20 text-cyan-400">
                           <Send className="w-4 h-4" />
                         </div>
                       ) : (
-                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-500/20 text-emerald-400">
+                        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-indigo-500/20 text-indigo-400">
                           <Bot className="w-4 h-4" />
                         </div>
                       )}
                       <div>
-                        <span className="text-[10px] text-neutral-400 block">Plataforma</span>
-                        <span className={`font-bold ${inspectedData.platform === 'TELEGRAM' ? 'text-cyan-300' : 'text-emerald-400'}`}>
-                          {inspectedData.platform === 'TELEGRAM' ? 'Telegram' : 'Discord'}
+                        <span className="text-[10px] text-neutral-400 block">Tipo / Plataforma</span>
+                        <span className={`font-bold ${inspectedData.isSite ? 'text-emerald-400' : inspectedData.platform === 'TELEGRAM' ? 'text-cyan-300' : 'text-indigo-400'}`}>
+                          {inspectedData.isSite ? 'Site Web' : inspectedData.platform === 'TELEGRAM' ? 'Telegram Bot' : 'Discord Bot'}
                         </span>
                       </div>
                     </div>
@@ -416,11 +441,16 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                     {/* Token Status */}
                     <div className="p-2.5 rounded-xl bg-white/5 border border-white/5 flex items-center gap-2.5">
                       <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-purple-500/20 text-purple-400">
-                        <Key className="w-4 h-4" />
+                        {inspectedData.isSite ? <Globe className="w-4 h-4 text-emerald-400" /> : <Key className="w-4 h-4" />}
                       </div>
                       <div className="truncate">
-                        <span className="text-[10px] text-neutral-400 block">Token</span>
-                        {inspectedData.token ? (
+                        <span className="text-[10px] text-neutral-400 block">{inspectedData.isSite ? 'Roteamento Web' : 'Token'}</span>
+                        {inspectedData.isSite ? (
+                          <span className="text-emerald-400 font-semibold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>SSL Ativo</span>
+                          </span>
+                        ) : inspectedData.token ? (
                           <span className="text-emerald-400 font-semibold flex items-center gap-1">
                             <CheckCircle2 className="w-3 h-3" />
                             <span>{inspectedData.token.slice(0, 7)}•••••••</span>
@@ -431,6 +461,19 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                       </div>
                     </div>
                   </div>
+
+                  {/* Subdomínio Web Atribuído */}
+                  {inspectedData.isSite && (
+                    <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-emerald-300">
+                      <div className="flex items-center gap-2 font-semibold">
+                        <Globe className="w-4 h-4 text-emerald-400 shrink-0" />
+                        <span>Subdomínio Web Vinculado:</span>
+                      </div>
+                      <span className="font-mono font-bold text-white bg-black/60 px-2.5 py-1 rounded-lg border border-white/10 select-all">
+                        https://{inspectedData.subdomain || inspectedData.name}.linkthelkov.online
+                      </span>
+                    </div>
+                  )}
 
                   {/* Badges de Recursos Detectados */}
                   {inspectedData.detectionDetails.detectedFeatures?.length > 0 && (
@@ -585,56 +628,139 @@ export const DeployModal: React.FC<DeployModalProps> = ({
             </form>
           ) : (
             /* ========================================================
-               TAB 2: CONFIGURAÇÃO MANUAL COM AUTO-DETECÇÃO DE PLATAFORMA
+               TAB 2: CONFIGURAÇÃO MANUAL (BOT OU SITE WEB)
                ======================================================== */
             <form onSubmit={handleManualCreate} className="space-y-4">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-xs font-mono text-neutral-300 mb-1">Nome do Bot</label>
-                  <input
-                    type="text"
-                    required
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="meu-bot"
-                    className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-mono text-neutral-300 mb-1">
-                    Plataforma (Auto-detectada pelo Token)
-                  </label>
-                  <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono">
-                    {platform === 'TELEGRAM' ? (
-                      <span className="text-cyan-300 flex items-center gap-1.5 font-semibold">
-                        <Send className="w-3.5 h-3.5" /> Telegram Bot
-                      </span>
-                    ) : (
-                      <span className="text-emerald-400 flex items-center gap-1.5 font-semibold">
-                        <Bot className="w-3.5 h-3.5" /> Discord Bot
-                      </span>
-                    )}
-                  </div>
-                </div>
-              </div>
-
+              {/* Seletor do Tipo de Aplicação: Bot ou Site Web */}
               <div>
-                <label className="block text-xs font-mono text-neutral-300 mb-1">
-                  Token de Autenticação (@BotFather ou Discord Developer Portal)
+                <label className="block text-xs font-mono text-neutral-300 mb-1.5">
+                  Tipo de Aplicação
                 </label>
-                <input
-                  type="password"
-                  required
-                  value={token}
-                  onChange={(e) => handleManualTokenChange(e.target.value)}
-                  placeholder="Cole seu token aqui..."
-                  className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
-                />
-                <span className="text-[10px] text-neutral-500 font-mono mt-1 block">
-                  Tokens no formato Telegram (ex: <code>123456789:AA...</code>) são identificados automaticamente.
-                </span>
+                <div className="grid grid-cols-2 gap-2 p-1 rounded-2xl bg-black/50 border border-white/10 font-mono text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualAppType('bot');
+                      setUploadError(null);
+                    }}
+                    className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-semibold transition-all ${
+                      manualAppType === 'bot'
+                        ? 'bg-cyan-500/20 text-cyan-300 border border-cyan-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <Bot className="w-4 h-4" />
+                    <span>Bot (Discord / Telegram)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setManualAppType('site');
+                      setUploadError(null);
+                      if (mainFile === 'index.js') setMainFile('server.js');
+                    }}
+                    className={`py-2 px-3 rounded-xl flex items-center justify-center gap-2 font-semibold transition-all ${
+                      manualAppType === 'site'
+                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 shadow-sm'
+                        : 'text-neutral-400 hover:text-white'
+                    }`}
+                  >
+                    <Globe className="w-4 h-4" />
+                    <span>Site Web (Next / Node / Proxy)</span>
+                  </button>
+                </div>
               </div>
+
+              {manualAppType === 'bot' ? (
+                /* Formulário para Bots */
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-mono text-neutral-300 mb-1">Nome do Bot</label>
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="meu-bot"
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono text-neutral-300 mb-1">
+                        Plataforma (Auto-detectada pelo Token)
+                      </label>
+                      <div className="flex items-center gap-2 px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono">
+                        {platform === 'TELEGRAM' ? (
+                          <span className="text-cyan-300 flex items-center gap-1.5 font-semibold">
+                            <Send className="w-3.5 h-3.5" /> Telegram Bot
+                          </span>
+                        ) : (
+                          <span className="text-emerald-400 flex items-center gap-1.5 font-semibold">
+                            <Bot className="w-3.5 h-3.5" /> Discord Bot
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-mono text-neutral-300 mb-1">
+                      Token de Autenticação (@BotFather ou Discord Developer Portal)
+                    </label>
+                    <input
+                      type="password"
+                      required
+                      value={token}
+                      onChange={(e) => handleManualTokenChange(e.target.value)}
+                      placeholder="Cole seu token aqui..."
+                      className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-cyan-400"
+                    />
+                    <span className="text-[10px] text-neutral-500 font-mono mt-1 block">
+                      Tokens no formato Telegram (ex: <code>123456789:AA...</code>) são identificados automaticamente.
+                    </span>
+                  </div>
+                </>
+              ) : (
+                /* Formulário para Sites Web */
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-mono text-neutral-300 mb-1">Nome do Site</label>
+                      <input
+                        type="text"
+                        required
+                        value={name}
+                        onChange={(e) => setName(e.target.value)}
+                        placeholder="meu-site-web"
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-mono text-neutral-300 mb-1">Subdomínio Desejado</label>
+                      <input
+                        type="text"
+                        required
+                        value={manualSubdomain}
+                        onChange={(e) => setManualSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        placeholder="ex: meusite"
+                        className="w-full px-3.5 py-2.5 rounded-2xl bg-black/50 border border-white/10 text-white text-xs font-mono focus:outline-none focus:border-emerald-400"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Prévia da URL Pública do Site */}
+                  <div className="p-3 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 flex items-center justify-between text-xs font-mono text-emerald-300">
+                    <span className="text-[11px] text-neutral-300">URL Pública Final:</span>
+                    <span className="font-bold text-white bg-black/50 px-2.5 py-1 rounded-lg border border-white/10">
+                      https://{manualSubdomain.trim() || name.trim() || 'xyz'}.linkthelkov.online
+                    </span>
+                  </div>
+                </>
+              )}
 
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 <div>
@@ -689,8 +815,8 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                   {isQuotaExceeded
                     ? 'Cota Esgotada (100 MB Reservados)'
                     : isUploading
-                    ? 'Criando...'
-                    : 'Registrar Instância'}
+                    ? (manualAppType === 'site' ? 'Publicando...' : 'Criando...')
+                    : (manualAppType === 'site' ? 'Registrar & Publicar Site' : 'Registrar Instância')}
                 </button>
               </div>
             </form>

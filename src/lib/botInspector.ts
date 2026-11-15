@@ -8,6 +8,8 @@ export interface InspectedBotData {
   mainFile: string;
   ramLimitMb: number;
   configType: 'aethel' | 'discloud';
+  isSite?: boolean;
+  subdomain?: string;
   language: 'python' | 'nodejs' | 'java' | 'other';
   hasDiscloudConfig: boolean;
   generatedDiscloudConfig: string;
@@ -132,6 +134,9 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     configType = 'discloud';
   }
 
+  let isSite = false;
+  let detectedSubdomain: string | undefined = undefined;
+
   if (configRaw) {
     const lines = configRaw.split(/\r?\n/);
     for (const line of lines) {
@@ -144,9 +149,18 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
 
       if (key === 'NAME' || key === 'ID') detectedName = val;
       if (key === 'MAIN') mainFile = val;
+      if (key === 'TYPE' && val.toLowerCase() === 'site') {
+        isSite = true;
+        detectedPlatform = 'DISCORD'; // Compatível com enum do banco
+        platformReason = 'Aplicação Web / Site';
+      }
+      if (key === 'SUBDOMAIN') {
+        isSite = true;
+        detectedSubdomain = val.toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 32);
+      }
       if (key === 'RAM') {
         const parsedRam = parseInt(val, 10);
-        if (!isNaN(parsedRam)) ramLimitMb = Math.min(Math.max(parsedRam, 25), 100);
+        if (!isNaN(parsedRam)) ramLimitMb = Math.min(Math.max(parsedRam, 100), 8192);
       }
       if (key === 'TOKEN' && !detectedToken && val) {
         detectedToken = val;
@@ -162,6 +176,12 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
         }
       }
     }
+  }
+
+  // Se for Site e não tiver token de bot, usa token interno de site
+  if (isSite && !detectedToken) {
+    detectedToken = `site:${detectedSubdomain || detectedName}`;
+    tokenSource = 'Site Web';
   }
 
   // Se mainFile termina com .py, assegura linguagem Python
@@ -403,6 +423,8 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     mainFile,
     ramLimitMb,
     configType,
+    isSite,
+    subdomain: detectedSubdomain,
     language: detectedLanguage,
     hasDiscloudConfig,
     generatedDiscloudConfig,

@@ -26,21 +26,26 @@ export function parseConfigFile(content: string, filename: string = 'aethel.conf
   const name = rawLines['NAME'] || rawLines['ID'] || 'aethel-bot';
   const main = rawLines['MAIN'] || 'index.js';
   
-  // Limite estrito de 100 MB da franquia Aethelkov/Discloud Grátis
+  // Cota de memória RAM: Mínimo obrigatório de 100 MB para qualquer aplicação
   let parsedRam = parseInt(rawLines['RAM'] || '100', 10);
-  if (isNaN(parsedRam) || parsedRam > 100) {
+  if (isNaN(parsedRam) || parsedRam < 100) {
     parsedRam = 100;
   }
-  if (parsedRam < 25) {
-    parsedRam = 25;
+  if (parsedRam > 8192) {
+    parsedRam = 8192;
   }
 
-  const type = rawLines['TYPE'] || 'bot';
+  const type = rawLines['TYPE']?.toLowerCase() || 'bot';
+  const subdomain = rawLines['SUBDOMAIN'] 
+    ? rawLines['SUBDOMAIN'].trim().toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 32)
+    : undefined;
   const autorestart = (rawLines['AUTORESTART'] || 'true').toLowerCase() === 'true';
 
   // Detecção de plataforma
   let platform: BotPlatform = 'DISCORD';
-  if (rawLines['PLATFORM']) {
+  if (type === 'site') {
+    platform = 'DISCORD'; // Armazena compatível com o banco
+  } else if (rawLines['PLATFORM']) {
     platform = rawLines['PLATFORM'].toUpperCase() === 'TELEGRAM' ? 'TELEGRAM' : 'DISCORD';
   } else if (rawLines['TOKEN'] && /^\d{8,11}:[A-Za-z0-9_-]{35}/.test(rawLines['TOKEN'])) {
     platform = 'TELEGRAM';
@@ -50,6 +55,7 @@ export function parseConfigFile(content: string, filename: string = 'aethel.conf
     name,
     platform,
     type,
+    subdomain,
     main,
     ram: parsedRam,
     autorestart,

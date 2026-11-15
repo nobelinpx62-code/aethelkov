@@ -23,8 +23,8 @@ interface NavbarProps {
   onRefresh: () => void;
   isRefreshing: boolean;
   onTriggerAdmin: () => void;
-  activeNavTab: 'overview' | 'instances' | 'plans' | 'settings';
-  onSelectNavTab: (tab: 'overview' | 'instances' | 'plans' | 'settings') => void;
+  activeNavTab: 'overview' | 'instances' | 'subdomains' | 'plans' | 'settings';
+  onSelectNavTab: (tab: 'overview' | 'instances' | 'subdomains' | 'plans' | 'settings') => void;
   currentUser?: any;
   onSignOut?: () => void;
   onOpenPromoModal?: () => void;
@@ -117,6 +117,17 @@ export const Navbar: React.FC<NavbarProps> = ({
                 }`}
               >
                 Instâncias
+              </button>
+              <button
+                onClick={() => onSelectNavTab('subdomains')}
+                className={`rounded-full px-4 py-1.5 font-medium transition-all flex items-center gap-1.5 ${
+                  activeNavTab === 'subdomains'
+                    ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                <Globe className="w-3.5 h-3.5 text-cyan-400" />
+                <span>Subdomínios</span>
               </button>
               <button
                 onClick={() => onSelectNavTab('plans')}
@@ -407,9 +418,30 @@ export const Navbar: React.FC<NavbarProps> = ({
                 >
                   <div className="flex items-center gap-3">
                     <Bot className="w-4 h-4 text-cyan-400" />
-                    <span>Instâncias de Bots</span>
+                    <span>Instâncias (Bots & Sites)</span>
                   </div>
                   <ArrowRight className="w-3.5 h-3.5 text-neutral-500" />
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    onSelectNavTab('subdomains');
+                    setIsDrawerOpen(false);
+                  }}
+                  className={`w-full flex items-center justify-between p-3 rounded-2xl text-left transition-colors ${
+                    activeNavTab === 'subdomains'
+                      ? 'bg-white/15 text-white font-semibold border border-white/20 shadow-sm'
+                      : 'text-neutral-300 hover:text-white hover:bg-white/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Globe className="w-4 h-4 text-emerald-400" />
+                    <span>Subdomínios Web</span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-[10px] text-emerald-300 font-bold border border-emerald-400/30">
+                    NOVO
+                  </span>
                 </button>
 
                 <button
@@ -521,7 +553,7 @@ export const Navbar: React.FC<NavbarProps> = ({
                 className="w-full apple-pill-btn apple-pill-primary flex items-center justify-center gap-2 py-3 rounded-2xl font-mono text-xs font-semibold text-white shadow-lg"
               >
                 <Plus className="w-4 h-4" />
-                <span>+ Novo Deploy (Bot)</span>
+                <span>+ Novo Deploy (Bot / Site)</span>
               </button>
 
               {onSignOut && (

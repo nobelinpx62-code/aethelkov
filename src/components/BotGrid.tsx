@@ -14,7 +14,8 @@ import {
   Terminal,
   Activity,
   Layers,
-  ShieldAlert
+  ShieldAlert,
+  Globe
 } from 'lucide-react';
 
 interface BotGridProps {
@@ -37,7 +38,7 @@ export const BotGrid: React.FC<BotGridProps> = ({
   onSetupTelegram,
 }) => {
   const [openMenuBotId, setOpenMenuBotId] = useState<string | null>(null);
-  const [filterType, setFilterType] = useState<'ALL' | 'DISCORD' | 'TELEGRAM'>('ALL');
+  const [filterType, setFilterType] = useState<'ALL' | 'BOTS' | 'SITES'>('ALL');
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Fecha menu de 3 pontinhos ao clicar fora
@@ -52,7 +53,9 @@ export const BotGrid: React.FC<BotGridProps> = ({
   }, []);
 
   const handleDownloadBackup = (bot: AethelBot) => {
-    const configContent = `# Backup Aethelkov Config\nNAME=${bot.bot_name}\nTYPE=bot\nMAIN=${bot.main_file}\nRAM=${bot.ram_limit_mb}\nPLATFORM=${bot.platform}\n`;
+    const isSite = bot.assigned_node?.startsWith('site:') || (bot as any).app_type === 'site';
+    const sub = isSite ? bot.assigned_node.replace('site:', '') : '';
+    const configContent = `# Backup Aethelkov Config\nNAME=${bot.bot_name}\nTYPE=${isSite ? 'site' : 'bot'}\nMAIN=${bot.main_file}\nRAM=${bot.ram_limit_mb}\n${isSite && sub ? `SUBDOMAIN=${sub}\n` : `PLATFORM=${bot.platform}\n`}`;
     const blob = new Blob([configContent], { type: 'text/plain' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -63,21 +66,30 @@ export const BotGrid: React.FC<BotGridProps> = ({
   };
 
   const filteredBots = bots.filter((b) => {
-    if (filterType === 'DISCORD') return b.platform === 'DISCORD';
-    if (filterType === 'TELEGRAM') return b.platform === 'TELEGRAM';
+    const isSite = b.assigned_node?.startsWith('site:') || (b as any).app_type === 'site';
+    if (filterType === 'BOTS') return !isSite;
+    if (filterType === 'SITES') return isSite;
     return true;
   });
+
+  const botCount = bots.filter(b => !b.assigned_node?.startsWith('site:') && (b as any).app_type !== 'site').length;
+  const siteCount = bots.filter(b => b.assigned_node?.startsWith('site:') || (b as any).app_type === 'site').length;
 
   if (bots.length === 0) {
     return (
       <div className="apple-glass-card rounded-[32px] p-12 text-center border border-white/10 relative overflow-hidden">
         <div className="glass-specular pointer-events-none absolute inset-x-8 top-0 h-[1px]"></div>
-        <div className="w-16 h-16 rounded-full bg-white/5 border border-white/10 flex items-center justify-center mx-auto mb-4 text-neutral-400">
-          <Bot className="w-8 h-8 text-cyan-300" />
+        <div className="flex items-center justify-center gap-3 mb-4">
+          <div className="w-14 h-14 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 flex items-center justify-center text-cyan-300 shadow-[0_0_20px_rgba(34,211,238,0.15)]">
+            <Bot className="w-7 h-7" />
+          </div>
+          <div className="w-14 h-14 rounded-2xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-center text-emerald-300 shadow-[0_0_20px_rgba(16,185,129,0.15)]">
+            <Globe className="w-7 h-7" />
+          </div>
         </div>
-        <h3 className="text-lg font-semibold text-white mb-1">Nenhuma instância cadastrada</h3>
-        <p className="text-sm text-neutral-400 max-w-md mx-auto mb-6">
-          Faça o deploy do seu bot do Discord ou Telegram arrastando um arquivo zip ou usando o botão Nova Instância.
+        <h3 className="text-lg font-semibold text-white mb-1.5">Nenhuma aplicação cadastrada</h3>
+        <p className="text-sm text-neutral-400 max-w-lg mx-auto mb-6">
+          Faça o deploy do seu <strong className="text-cyan-300 font-semibold">Bot</strong> (Discord ou Telegram) ou <strong className="text-emerald-300 font-semibold">Site Web</strong> (Next.js, Node.js, Python, proxies com subdomínio próprio) arrastando um arquivo .zip ou clicando em Nova Instância.
         </p>
       </div>
     );
@@ -104,24 +116,26 @@ export const BotGrid: React.FC<BotGridProps> = ({
             Todas ({bots.length})
           </button>
           <button
-            onClick={() => setFilterType('DISCORD')}
-            className={`rounded-full px-3 py-1 font-medium transition-all ${
-              filterType === 'DISCORD'
+            onClick={() => setFilterType('BOTS')}
+            className={`rounded-full px-3 py-1 font-medium transition-all flex items-center gap-1.5 ${
+              filterType === 'BOTS'
                 ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            Discord ({bots.filter(b => b.platform === 'DISCORD').length})
+            <Bot className="w-3.5 h-3.5" />
+            <span>Bots ({botCount})</span>
           </button>
           <button
-            onClick={() => setFilterType('TELEGRAM')}
-            className={`rounded-full px-3 py-1 font-medium transition-all ${
-              filterType === 'TELEGRAM'
+            onClick={() => setFilterType('SITES')}
+            className={`rounded-full px-3 py-1 font-medium transition-all flex items-center gap-1.5 ${
+              filterType === 'SITES'
                 ? 'text-white bg-white/15 shadow-[inset_0_1px_1px_rgba(255,255,255,0.25)]'
                 : 'text-neutral-400 hover:text-white'
             }`}
           >
-            Telegram ({bots.filter(b => b.platform === 'TELEGRAM').length})
+            <Globe className="w-3.5 h-3.5" />
+            <span>Sites ({siteCount})</span>
           </button>
         </div>
       </div>
@@ -131,6 +145,9 @@ export const BotGrid: React.FC<BotGridProps> = ({
         {filteredBots.map((bot) => {
           const isOnline = bot.status === 'ONLINE';
           const isDiscord = bot.platform === 'DISCORD';
+          const isSite = bot.assigned_node?.startsWith('site:') || (bot as any).app_type === 'site';
+          const siteSub = isSite ? bot.assigned_node.replace('site:', '') : null;
+          const siteUrl = siteSub && siteSub !== 'app' ? `https://${siteSub}.linkthelkov.online` : null;
           const isMenuOpen = openMenuBotId === bot.id;
 
           // Cálculo do consumo real do bot (15.8 MB motor Node.js + dependências e código)
@@ -152,7 +169,9 @@ export const BotGrid: React.FC<BotGridProps> = ({
                     onClick={() => onOpenDetails(bot.id)}
                     className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 border border-white/20 shadow-[inset_0_1px_1px_rgba(255,255,255,0.3)] cursor-pointer hover:scale-105 transition-transform"
                   >
-                    {isDiscord ? (
+                    {isSite ? (
+                      <Globe className="h-6 w-6 text-cyan-300" />
+                    ) : isDiscord ? (
                       <Bot className="h-6 w-6 text-cyan-300" />
                     ) : (
                       <Send className="h-6 w-6 text-indigo-300" />
@@ -167,16 +186,37 @@ export const BotGrid: React.FC<BotGridProps> = ({
                       >
                         {bot.bot_name}
                       </h3>
-                      <span className="rounded bg-white/10 border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-neutral-300 uppercase">
-                        {bot.platform}
+                      <span className={`rounded px-1.5 py-0.5 font-mono text-[9px] uppercase font-bold border ${
+                        isSite
+                          ? 'bg-cyan-500/20 text-cyan-300 border-cyan-400/30'
+                          : 'bg-white/10 text-neutral-300 border-white/10'
+                      }`}>
+                        {isSite ? 'SITE WEB' : bot.platform}
                       </span>
                       <span className="rounded bg-white/5 border border-white/10 px-1.5 py-0.5 font-mono text-[9px] text-neutral-400">
                         aethel.config
                       </span>
                     </div>
-                    <p className="font-mono text-xs text-neutral-400 mt-0.5">
-                      Arquivo de Entrada: <strong className="text-neutral-300">{bot.main_file}</strong>
-                    </p>
+
+                    {isSite && siteUrl ? (
+                      <div className="flex items-center gap-1.5 mt-1 font-mono text-xs">
+                        <span className="text-neutral-500">URL:</span>
+                        <a
+                          href={siteUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={(e) => e.stopPropagation()}
+                          className="text-cyan-300 hover:underline flex items-center gap-1 font-semibold"
+                        >
+                          <span>{siteUrl}</span>
+                          <ExternalLink className="w-3 h-3 text-cyan-400" />
+                        </a>
+                      </div>
+                    ) : (
+                      <p className="font-mono text-xs text-neutral-400 mt-0.5">
+                        Arquivo de Entrada: <strong className="text-neutral-300">{bot.main_file}</strong>
+                      </p>
+                    )}
                   </div>
                 </div>
 

@@ -255,7 +255,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
         formData.append('name', appName.trim());
         formData.append('type', appType);
         formData.append('ram', String(Math.max(100, ram)));
-        formData.append('main', mainFile.trim() || (appType === 'site' ? 'server.js' : 'index.js'));
+        formData.append('main', mainFile.trim() || (appType === 'site' ? 'index.html' : 'index.js'));
         formData.append('platform', appType === 'site' ? 'DISCORD' : platform);
         if (cleanSub) formData.append('subdomain', cleanSub);
         if (Object.keys(customEnv).length > 0) {
@@ -285,6 +285,14 @@ export const DeployModal: React.FC<DeployModalProps> = ({
             }
             if (Object.keys(extractedFiles).length > 0) {
               localStorage.setItem(`aethel_bot_files_${data.botId}`, JSON.stringify(extractedFiles));
+              if (appType === 'site' && cleanSub) {
+                // Sincroniza também no storage de subdomínio
+                await fetch(`/api/sites/${cleanSub}/save`, {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ files: extractedFiles, botId: data.botId }),
+                }).catch(() => {});
+              }
             }
           } catch (_) {}
         }
@@ -301,7 +309,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
             platform: appType === 'site' ? 'DISCORD' : platform,
             token: appType === 'site' ? (token.trim() || `site:${cleanSub}`) : token.trim(),
             ram_limit_mb: Math.max(100, Math.min(ram, totalQuotaMb)),
-            main_file: mainFile.trim() || (appType === 'site' ? 'server.js' : 'index.js'),
+            main_file: mainFile.trim() || (appType === 'site' ? 'index.html' : 'index.js'),
             config_type: 'aethel',
             assigned_node: assignedNode,
             app_type: appType,
@@ -312,6 +320,100 @@ export const DeployModal: React.FC<DeployModalProps> = ({
 
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Falha ao registrar aplicação.');
+
+        // Se for um Site Web criado manualmente, inicializa os arquivos HTML/CSS/JS automaticamente
+        if (appType === 'site' && cleanSub) {
+          const starterSiteFiles: Record<string, string> = {
+            'index.html': `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${appName.trim()} • Aethelkov</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="card">
+    <div class="badge">🌐 SITE ONLINE</div>
+    <h1>${appName.trim()}</h1>
+    <p>Seu site está no ar com sucesso com subdomínio próprio e SSL na <strong>Aethelkov</strong>!</p>
+    <button id="btnClick">Testar Interatividade</button>
+    <div id="output"></div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>`,
+            'style.css': `* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #06070a;
+  color: #f5f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 28px;
+  padding: 40px;
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+h1 { font-size: 28px; font-weight: 800; margin-bottom: 12px; }
+p { color: #a1a1aa; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+button {
+  background: #10b981;
+  color: #000;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+button:hover { background: #34d399; transform: scale(1.04); }
+#output { margin-top: 18px; font-size: 13px; color: #38bdf8; font-family: monospace; }`,
+            'script.js': `const btn = document.getElementById('btnClick');
+const output = document.getElementById('output');
+let count = 0;
+
+btn?.addEventListener('click', () => {
+  count++;
+  output.textContent = '🎉 Botão acionado ' + count + ' vez(es)! JavaScript funcionando com perfeição.';
+});`,
+            'aethel.config': `NAME=${appName.trim()}\nTYPE=site\nMAIN=index.html\nSUBDOMAIN=${cleanSub}\n`,
+          };
+
+          if (data.bot_id) {
+            localStorage.setItem(`aethel_bot_files_${data.bot_id}`, JSON.stringify(starterSiteFiles));
+          }
+
+          // Publica o ZIP inicial no storage do subdomínio
+          await fetch(`/api/sites/${cleanSub}/save`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ files: starterSiteFiles, botId: data.bot_id }),
+          }).catch(() => {});
+        }
       }
 
       setSubmitStatusText('Aplicação lançada com sucesso!');
@@ -351,7 +453,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
     `# Aethelkov Runtime Configuration`,
     `NAME=${appName.trim() || 'minha-aplicacao'}`,
     `TYPE=${appType}`,
-    `MAIN=${mainFile.trim() || (appType === 'site' ? 'server.js' : 'index.js')}`,
+    `MAIN=${mainFile.trim() || (appType === 'site' ? 'index.html' : 'index.js')}`,
     `RAM=${Math.max(100, ram)}`,
     appType === 'site' 
       ? `SUBDOMAIN=${(subdomain.trim() || appName.trim()).toLowerCase().replace(/[^a-z0-9-]/g, '') || 'meusite'}`
@@ -779,11 +881,12 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                     </div>
                   </div>
 
-                  {/* Site Web / API */}
+                  {/* Site Web */}
                   <div
                     onClick={() => {
                       setAppType('site');
-                      if (mainFile === 'index.js') setMainFile('server.js');
+                      setMainFile('index.html');
+                      setLanguage('other');
                     }}
                     className={`p-4 rounded-3xl border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                       appType === 'site'
@@ -802,35 +905,95 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                       )}
                     </div>
                     <div>
-                      <strong className="text-white text-sm block">Site Web / API</strong>
+                      <strong className="text-white text-sm block">Site Web (Estilo Vercel)</strong>
                       <span className="text-[11px] text-neutral-400 leading-tight block mt-0.5">
-                        Next.js, Node.js, Python, proxies com subdomínio próprio e SSL.
+                        HTML5, CSS3, JavaScript com subdomínio próprio e SSL grátis.
                       </span>
                     </div>
                   </div>
                 </div>
               </div>
 
-              {/* Se escolheu Site Web: Campo de Subdomínio */}
+              {/* Se escolheu Site Web: Configurações Dedicadas de Site */}
               {appType === 'site' && (
-                <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 space-y-3 animate-fadeIn">
-                  <label className="block text-xs font-mono text-emerald-300 font-semibold">
-                    Escolha seu Subdomínio Personalizado (Gratuito com SSL)
-                  </label>
-                  <div className="flex items-center rounded-2xl bg-black/60 border border-white/15 px-3 py-2 text-white font-mono text-xs focus-within:border-emerald-400">
-                    <span className="text-neutral-500 select-none mr-1">https://</span>
-                    <input
-                      type="text"
-                      value={subdomain}
-                      onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
-                      placeholder={appName.toLowerCase().replace(/[^a-z0-9-]/g, '') || 'meusite'}
-                      className="flex-1 bg-transparent border-none text-white focus:outline-none"
-                    />
-                    <span className="text-cyan-400 select-none font-semibold">.linkthelkov.online</span>
+                <div className="space-y-4 animate-fadeIn">
+                  <div className="p-5 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 space-y-3">
+                    <label className="block text-xs font-mono text-emerald-300 font-semibold">
+                      Escolha seu Subdomínio Personalizado (Gratuito com SSL)
+                    </label>
+                    <div className="flex items-center rounded-2xl bg-black/60 border border-white/15 px-3 py-2 text-white font-mono text-xs focus-within:border-emerald-400">
+                      <span className="text-neutral-500 select-none mr-1">https://</span>
+                      <input
+                        type="text"
+                        value={subdomain}
+                        onChange={(e) => setSubdomain(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, ''))}
+                        placeholder={appName.toLowerCase().replace(/[^a-z0-9-]/g, '') || 'meusite'}
+                        className="flex-1 bg-transparent border-none text-white focus:outline-none"
+                      />
+                      <span className="text-cyan-400 select-none font-semibold">.linkthelkov.online</span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400">
+                      <span>Certificado SSL/TLS: <strong className="text-emerald-400 font-semibold">Ativo & Automático</strong></span>
+                      <span className="text-neutral-500">Mínimo 3 caracteres alfanuméricos</span>
+                    </div>
                   </div>
-                  <div className="flex items-center justify-between text-[11px] font-mono text-neutral-400">
-                    <span>Certificado SSL/TLS: <strong className="text-emerald-400 font-semibold">Ativo & Automático</strong></span>
-                    <span className="text-neutral-500">Mínimo 3 caracteres alfanuméricos</span>
+
+                  {/* Modalidade: Estático vs Backend */}
+                  <div className="space-y-2">
+                    <label className="block text-xs font-mono text-neutral-300">
+                      Modalidade do Site
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      <div
+                        onClick={() => {
+                          setMainFile('index.html');
+                          setLanguage('other');
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                          mainFile === 'index.html'
+                            ? 'bg-emerald-500/20 border-emerald-500/60 shadow-sm'
+                            : 'bg-black/40 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xl">🌐</span>
+                          {mainFile === 'index.html' && (
+                            <span className="text-xs text-emerald-400 font-mono font-bold">RECOMENDADO</span>
+                          )}
+                        </div>
+                        <div>
+                          <strong className="text-white text-sm block">Site Estático (Padrão Vercel)</strong>
+                          <span className="text-[11px] text-neutral-400 block mt-0.5 leading-tight">
+                            Basta index.html, CSS e JavaScript. Sem precisar de Node.js ou server.js!
+                          </span>
+                        </div>
+                      </div>
+
+                      <div
+                        onClick={() => {
+                          setMainFile('server.js');
+                          setLanguage('nodejs');
+                        }}
+                        className={`p-4 rounded-2xl border transition-all cursor-pointer flex flex-col justify-between gap-2 ${
+                          mainFile !== 'index.html'
+                            ? 'bg-white/15 border-white/40 shadow-sm'
+                            : 'bg-black/40 border-white/10 hover:border-white/20'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-xl">⚙️</span>
+                          {mainFile !== 'index.html' && (
+                            <span className="text-xs text-cyan-400 font-mono font-bold">ATIVO</span>
+                          )}
+                        </div>
+                        <div>
+                          <strong className="text-white text-sm block">Aplicação Web com Backend</strong>
+                          <span className="text-[11px] text-neutral-400 block mt-0.5 leading-tight">
+                            Para projetos dinâmicos que executam um servidor HTTP próprio (server.js / app.py).
+                          </span>
+                        </div>
+                      </div>
+                    </div>
                   </div>
                 </div>
               )}
@@ -866,19 +1029,99 @@ export const DeployModal: React.FC<DeployModalProps> = ({
           )}
 
           {/* ========================================================
-              ETAPA 3: LINGUAGEM & ALOCAÇÃO DE MEMÓRIA RAM
+              ETAPA 3: LINGUAGEM & RECURSOS (SEPARADO: SITE VS BOT)
               ======================================================== */}
-          {currentStep === 3 && (
+          {currentStep === 3 && appType === 'site' && mainFile === 'index.html' ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-1">
+                <span className="text-[11px] font-mono text-emerald-400 uppercase tracking-wider font-semibold">
+                  Passo 2 de 4: Hospedagem Web Estática
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                  Motor Web Estático (Estilo Vercel)
+                </h2>
+                <p className="text-xs sm:text-sm text-neutral-400">
+                  Sites estáticos rodam com velocidade máxima de borda e zero necessidade de scripts Node.js ou server.js.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-5 rounded-3xl bg-black/40 border border-white/10 space-y-2">
+                  <div className="flex items-center gap-2 text-emerald-400 font-semibold text-sm">
+                    <CheckCircle2 className="w-4 h-4" />
+                    <span>Arquivo de Entrada</span>
+                  </div>
+                  <p className="text-xs text-neutral-300 font-mono">
+                    index.html <span className="text-neutral-500">(HTML5 padrão)</span>
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Carregamento de folhas de estilo (style.css), JavaScript (script.js) e assets estáticos.
+                  </p>
+                </div>
+
+                <div className="p-5 rounded-3xl bg-black/40 border border-white/10 space-y-2">
+                  <div className="flex items-center gap-2 text-cyan-400 font-semibold text-sm">
+                    <ShieldCheck className="w-4 h-4" />
+                    <span>Segurança & SSL</span>
+                  </div>
+                  <p className="text-xs text-neutral-300 font-mono">
+                    HTTPS Automático TLS 1.3
+                  </p>
+                  <p className="text-[11px] text-neutral-400">
+                    Certificado wildcard ativo com terminação SSL em *.linkthelkov.online.
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-5 rounded-3xl bg-white/[0.03] border border-white/10 space-y-3 font-mono text-xs">
+                <span className="text-neutral-400 block font-semibold">Armazenamento & Performance</span>
+                <div className="flex items-center justify-between text-neutral-300">
+                  <span>Cota de Armazenamento:</span>
+                  <strong className="text-white">100 MB dedicado</strong>
+                </div>
+                <div className="flex items-center justify-between text-neutral-300">
+                  <span>Distribuição:</span>
+                  <strong className="text-emerald-400">Global Edge CDN</strong>
+                </div>
+              </div>
+
+              {/* Botões de Navegação */}
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(2)}
+                  className="px-5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white font-mono text-xs transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Voltar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorNotice(null);
+                    setCurrentStep(4);
+                  }}
+                  className="apple-pill-btn apple-pill-primary px-7 py-3 rounded-2xl font-semibold text-xs text-white flex items-center gap-2 shadow-lg"
+                >
+                  <span>Próximo: Publicação & Domínio</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : currentStep === 3 && (
             <div className="space-y-6 animate-fadeIn">
               <div className="space-y-1">
                 <span className="text-[11px] font-mono text-cyan-400 uppercase tracking-wider font-semibold">
                   Passo 2 de 4: Recursos do Sistema
                 </span>
                 <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
-                  Linguagem & Memória RAM
+                  {appType === 'site' ? 'Runtime da Aplicação Web' : 'Linguagem & Memória RAM'}
                 </h2>
                 <p className="text-xs sm:text-sm text-neutral-400">
-                  Selecione o ambiente de execução e reserve a memória necessária para a aplicação.
+                  {appType === 'site'
+                    ? 'Selecione o backend da sua aplicação web e aloque a memória necessária.'
+                    : 'Selecione o ambiente de execução e reserve a memória necessária para a aplicação.'}
                 </p>
               </div>
 
@@ -985,7 +1228,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                   }}
                   className="apple-pill-btn apple-pill-primary px-7 py-3 rounded-2xl font-semibold text-xs text-white flex items-center gap-2 shadow-lg"
                 >
-                  <span>Próximo: Inicialização & Tokens</span>
+                  <span>{appType === 'site' ? 'Próximo: Publicação & Domínio' : 'Próximo: Inicialização & Tokens'}</span>
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
@@ -993,9 +1236,83 @@ export const DeployModal: React.FC<DeployModalProps> = ({
           )}
 
           {/* ========================================================
-              ETAPA 4: INICIALIZAÇÃO, AUTENTICAÇÃO & VARIÁVEIS (.ENV)
+              ETAPA 4: INICIALIZAÇÃO / AUTENTICAÇÃO (SEPARADO: SITE VS BOT)
               ======================================================== */}
-          {currentStep === 4 && (
+          {currentStep === 4 && appType === 'site' ? (
+            <div className="space-y-6 animate-fadeIn">
+              <div className="space-y-1">
+                <span className="text-[11px] font-mono text-emerald-400 uppercase tracking-wider font-semibold">
+                  Passo 3 de 4: Publicação & Domínio
+                </span>
+                <h2 className="text-2xl sm:text-3xl font-bold tracking-tight text-white">
+                  Seu Site Pronto para o Mundo 🚀
+                </h2>
+                <p className="text-xs sm:text-sm text-neutral-400">
+                  Sites são públicos e seguros por padrão. Não exigem tokens de bot ou autenticação externa.
+                </p>
+              </div>
+
+              <div className="p-6 rounded-3xl bg-black/50 border border-emerald-500/30 space-y-4">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                    <Globe className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-mono text-neutral-400 block uppercase">Endereço Web Oficial</span>
+                    <strong className="text-cyan-300 font-mono text-sm sm:text-base">
+                      https://{(subdomain || appName).toLowerCase().replace(/[^a-z0-9-]/g, '')}.linkthelkov.online
+                    </strong>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 pt-2 border-t border-white/10 font-mono text-xs">
+                  <div>
+                    <span className="text-neutral-500 block text-[10px]">Arquivo de Entrada:</span>
+                    <strong className="text-white">{mainFile || 'index.html'}</strong>
+                  </div>
+                  <div>
+                    <span className="text-neutral-500 block text-[10px]">Certificado de Segurança:</span>
+                    <strong className="text-emerald-400 flex items-center gap-1">
+                      <ShieldCheck className="w-3.5 h-3.5" /> SSL TLS 1.3
+                    </strong>
+                  </div>
+                </div>
+              </div>
+
+              {!zipFile && (
+                <div className="p-4 rounded-2xl bg-cyan-500/10 border border-cyan-500/25 flex items-start gap-3">
+                  <Sparkles className="w-5 h-5 text-cyan-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-neutral-300 leading-relaxed font-sans">
+                    Como você está criando o site manualmente, geraremos um <strong className="text-white">index.html, style.css e script.js</strong> modernos e funcionais de exemplo. Você poderá editá-los livremente pelo Editor de Código da plataforma!
+                  </p>
+                </div>
+              )}
+
+              {/* Botões de Navegação */}
+              <div className="pt-4 flex items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={() => setCurrentStep(3)}
+                  className="px-5 py-2.5 rounded-2xl bg-white/5 hover:bg-white/10 text-neutral-400 hover:text-white font-mono text-xs transition-colors flex items-center gap-2"
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                  <span>Voltar</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorNotice(null);
+                    setCurrentStep(5);
+                  }}
+                  className="apple-pill-btn apple-pill-primary px-7 py-3 rounded-2xl font-semibold text-xs text-white flex items-center gap-2 shadow-lg"
+                >
+                  <span>Próximo: Revisar & Lançar Site</span>
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+          ) : currentStep === 4 && (
             <div className="space-y-6 animate-fadeIn">
               <div className="space-y-1">
                 <span className="text-[11px] font-mono text-cyan-400 uppercase tracking-wider font-semibold">
@@ -1019,12 +1336,12 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                   required
                   value={mainFile}
                   onChange={(e) => setMainFile(e.target.value)}
-                  placeholder={appType === 'site' ? 'server.js' : 'index.js'}
+                  placeholder={appType === 'site' ? 'index.html' : 'index.js'}
                   className="w-full px-4 py-3 rounded-2xl bg-black/50 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
                 />
                 <div className="flex items-center gap-1.5 flex-wrap pt-1 font-mono text-[11px]">
                   <span className="text-neutral-500">Sugestões:</span>
-                  {(appType === 'site' ? ['server.js', 'index.js', 'app.py', 'npm start'] : ['index.js', 'main.py', 'bot.js', 'app.js']).map((sug) => (
+                  {(appType === 'site' ? ['index.html', 'server.js', 'index.js', 'app.py'] : ['index.js', 'main.py', 'bot.js', 'app.js']).map((sug) => (
                     <button
                       key={sug}
                       type="button"
@@ -1037,43 +1354,31 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                 </div>
               </div>
 
-              {/* Autenticação: Token de Bot vs Roteamento Web */}
-              {appType === 'bot' ? (
-                <div className="space-y-2">
-                  <label className="block text-xs font-mono text-neutral-300">
-                    Token de Autenticação ({platform === 'TELEGRAM' ? 'Telegram Bot API' : 'Discord Bot'}) <span className="text-rose-400">*</span>
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      required
-                      value={token}
-                      onChange={(e) => {
-                        setToken(e.target.value);
-                        setPlatform(detectPlatformFromToken(e.target.value));
-                      }}
-                      placeholder={platform === 'TELEGRAM' ? '123456789:ABCDefghijk...' : 'MTIzNDU2...'}
-                      className="w-full px-4 py-3 rounded-2xl bg-black/50 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-cyan-400 pr-10"
-                    />
-                    <Key className="w-4 h-4 text-neutral-500 absolute right-3.5 top-3.5" />
-                  </div>
-                  <span className="text-[10px] text-neutral-500 font-mono block">
-                    {platform === 'TELEGRAM'
-                      ? 'Obtido conversando com o @BotFather no Telegram.'
-                      : 'Obtido na aba "Bot" no Discord Developer Portal.'}
-                  </span>
+              {/* Autenticação: Token de Bot */}
+              <div className="space-y-2">
+                <label className="block text-xs font-mono text-neutral-300">
+                  Token de Autenticação ({platform === 'TELEGRAM' ? 'Telegram Bot API' : 'Discord Bot'}) <span className="text-rose-400">*</span>
+                </label>
+                <div className="relative">
+                  <input
+                    type="password"
+                    required
+                    value={token}
+                    onChange={(e) => {
+                      setToken(e.target.value);
+                      setPlatform(detectPlatformFromToken(e.target.value));
+                    }}
+                    placeholder={platform === 'TELEGRAM' ? '123456789:ABCDefghijk...' : 'MTIzNDU2...'}
+                    className="w-full px-4 py-3 rounded-2xl bg-black/50 border border-white/15 text-white font-mono text-xs focus:outline-none focus:border-cyan-400 pr-10"
+                  />
+                  <Key className="w-4 h-4 text-neutral-500 absolute right-3.5 top-3.5" />
                 </div>
-              ) : (
-                <div className="p-4 rounded-3xl bg-emerald-500/10 border border-emerald-500/30 space-y-1 font-mono text-xs text-emerald-300">
-                  <div className="flex items-center gap-2 font-bold text-white">
-                    <ShieldCheck className="w-4 h-4 text-emerald-400" />
-                    <span>Sem necessidade de Token de Bot</span>
-                  </div>
-                  <p className="text-neutral-300 text-[11px] leading-relaxed">
-                    Aplicações do tipo Site Web são expostas publicamente através do subdomínio configurado com proxy reverso e terminação SSL automática.
-                  </p>
-                </div>
-              )}
+                <span className="text-[10px] text-neutral-500 font-mono block">
+                  {platform === 'TELEGRAM'
+                    ? 'Obtido conversando com o @BotFather no Telegram.'
+                    : 'Obtido na aba "Bot" no Discord Developer Portal.'}
+                </span>
+              </div>
 
               {/* Variáveis de Ambiente (.env) */}
               <div className="space-y-3 p-4 rounded-3xl bg-black/40 border border-white/10 font-mono text-xs">
@@ -1258,7 +1563,7 @@ export const DeployModal: React.FC<DeployModalProps> = ({
                   ) : (
                     <>
                       <Sparkles className="w-4 h-4 text-cyan-300" />
-                      <span>🚀 Lançar Aplicação na Malha Aethelkov</span>
+                      <span>{appType === 'site' ? '🚀 Lançar Meu Site Agora (com SSL)' : '🚀 Lançar Aplicação na Malha Aethelkov'}</span>
                     </>
                   )}
                 </button>

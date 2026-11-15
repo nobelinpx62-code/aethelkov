@@ -346,6 +346,19 @@ export const BotGrid: React.FC<BotGridProps> = ({
                 </span>
 
                 <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full sm:w-auto">
+                  {/* Botão Abrir Site se for Site Web */}
+                  {bot.assigned_node?.startsWith('site:') && (
+                    <a
+                      href={`https://${bot.assigned_node.replace('site:', '')}.linkthelkov.online`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="col-span-2 sm:col-span-1 apple-pill-btn apple-pill-primary flex items-center justify-center gap-1.5 rounded-full px-3.5 py-2 sm:py-1.5 text-xs font-semibold text-white shadow-md hover:scale-105 transition-all"
+                    >
+                      <Globe className="h-3.5 w-3.5" />
+                      <span>Abrir Site ↗</span>
+                    </a>
+                  )}
+
                   {/* Botão Painel Completo */}
                   <button
                     onClick={() => onOpenDetails(bot.id)}

@@ -243,6 +243,13 @@ export async function POST(req: NextRequest) {
               appId: botId,
               appName: inspected.name,
             });
+            // Sincroniza o pacote no storage do subdomínio para renderização instantânea
+            await supabase.storage
+              .from('aethel-deployments')
+              .upload(`sites/${inspected.subdomain}.zip`, uploadBuffer, {
+                contentType: 'application/zip',
+                upsert: true,
+              });
           } catch (_) {}
         }
       }

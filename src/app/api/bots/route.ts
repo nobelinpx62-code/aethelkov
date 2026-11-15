@@ -104,7 +104,7 @@ export async function POST(req: NextRequest) {
           platform,
           token_encrypted: token,
           ram_limit_mb: requiredRam,
-          main_file: main_file || (isSite ? 'index.js' : 'index.js'),
+          main_file: main_file || (isSite ? 'index.html' : 'index.js'),
           config_type: config_type || 'aethel',
           assigned_node,
           updated_at: new Date().toISOString(),
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest) {
         p_platform: platform,
         p_token_encrypted: token,
         p_ram_limit_mb: requiredRam,
-        p_main_file: main_file || 'index.js',
+        p_main_file: main_file || (isSite ? 'index.html' : 'index.js'),
         p_config_type: config_type || 'aethel',
         p_assigned_node: assigned_node,
       });

@@ -17,7 +17,9 @@ import {
   ChevronDown,
   Sparkles,
   Layers,
-  FileCheck
+  FileCheck,
+  Globe,
+  Palette
 } from 'lucide-react';
 
 interface BotFileEditorProps {
@@ -280,6 +282,99 @@ bot.start({
       return telegramFiles;
     }
 
+    // Se for uma aplicação do tipo SITE (subdomínio ou index.html)
+    const isSiteApp =
+      tokenEncrypted?.startsWith('site:') ||
+      mainFile?.endsWith('.html') ||
+      mainFile === 'index.html';
+
+    if (isSiteApp) {
+      const siteSub = tokenEncrypted?.replace('site:', '') || botName.toLowerCase().replace(/[^a-z0-9-]/g, '');
+      const siteFiles: Record<string, string> = {
+        'index.html': `<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>${botName} • Hospedado na Aethelkov</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="card">
+    <div class="badge">🌐 SITE ONLINE</div>
+    <h1>${botName}</h1>
+    <p>Seu site está no ar com sucesso com subdomínio próprio e SSL na <strong>Aethelkov</strong>!</p>
+    <button id="btnClick">Testar Interatividade</button>
+    <div id="output"></div>
+  </div>
+  <script src="script.js"></script>
+</body>
+</html>`,
+        'style.css': `* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: #06070a;
+  color: #f5f5f7;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.card {
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 28px;
+  padding: 40px;
+  max-width: 520px;
+  width: 100%;
+  text-align: center;
+  backdrop-filter: blur(20px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.7);
+}
+.badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  color: #34d399;
+  font-size: 11px;
+  font-family: monospace;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+h1 { font-size: 28px; font-weight: 800; margin-bottom: 12px; }
+p { color: #a1a1aa; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+button {
+  background: #10b981;
+  color: #000;
+  border: none;
+  padding: 12px 30px;
+  border-radius: 9999px;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: transform 0.2s, background 0.2s;
+}
+button:hover { background: #34d399; transform: scale(1.04); }
+#output { margin-top: 18px; font-size: 13px; color: #38bdf8; font-family: monospace; }`,
+        'script.js': `const btn = document.getElementById('btnClick');
+const output = document.getElementById('output');
+let count = 0;
+
+btn?.addEventListener('click', () => {
+  count++;
+  output.textContent = '🎉 Botão acionado ' + count + ' vez(es)! JavaScript funcionando com perfeição.';
+});`,
+        'aethel.config': `NAME=${botName}\nTYPE=site\nMAIN=index.html\nSUBDOMAIN=${siteSub}\n`
+      };
+      if (typeof window !== 'undefined' && botId) {
+        localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(siteFiles));
+      }
+      return siteFiles;
+    }
+
     // Instância genérica: apenas os arquivos principais reais (sem pastas falsas)
     const baseFiles: Record<string, string> = {
       [mainFile || 'bot.js']: `// ${botName} - Entrada Principal\nconsole.log('Instância iniciada com sucesso!');\n`,
@@ -419,6 +514,18 @@ bot.start({
     if (typeof window !== 'undefined' && botId) {
       localStorage.setItem(`aethel_bot_files_${botId}`, JSON.stringify(files));
     }
+
+    // Se for site, sincroniza automaticamente com o servidor para hot-update no subdomínio
+    const isSiteApp = tokenEncrypted?.startsWith('site:') || mainFile?.endsWith('.html') || mainFile === 'index.html';
+    if (isSiteApp) {
+      const siteSub = tokenEncrypted?.replace('site:', '') || botName.toLowerCase().replace(/[^a-z0-9-]/g, '');
+      fetch(`/api/sites/${siteSub}/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ files, botId }),
+      }).catch((err) => console.warn('[BotFileEditor] Aviso ao sincronizar site ao vivo:', err));
+    }
+
     onSave(files, selectedFile);
   };
 
@@ -436,6 +543,12 @@ bot.start({
 
   // Ícone específico para cada extensão
   const getFileIcon = (fileName: string) => {
+    if (fileName.endsWith('.html')) {
+      return <Globe className="w-3.5 h-3.5 text-orange-400 shrink-0" />;
+    }
+    if (fileName.endsWith('.css')) {
+      return <Palette className="w-3.5 h-3.5 text-blue-400 shrink-0" />;
+    }
     if (fileName.endsWith('.js') || fileName.endsWith('.ts')) {
       return <FileCode className="w-3.5 h-3.5 text-amber-400 shrink-0" />;
     }
@@ -471,6 +584,19 @@ bot.start({
 
         {/* Modos de Visualização & Botão Salvar */}
         <div className="flex items-center gap-2">
+          {/* Botão de Acesso Rápido ao Site no Ar */}
+          {tokenEncrypted?.startsWith('site:') && (
+            <a
+              href={`https://${tokenEncrypted.replace('site:', '')}.linkthelkov.online`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/35 text-emerald-400 text-xs font-mono font-semibold transition-all hover:scale-105"
+            >
+              <Globe className="w-3.5 h-3.5" />
+              <span>Ver Site no Ar ↗</span>
+            </a>
+          )}
+
           {/* Seletor de Modo: Realce (Padrão) / Texto Puro / Lado a Lado */}
           <div className="hidden sm:flex rounded-full bg-black/50 p-1 border border-white/10 font-mono text-xs">
             <button
@@ -515,7 +641,13 @@ bot.start({
             className="apple-pill-btn apple-pill-primary flex items-center gap-2 rounded-full px-4 sm:px-5 py-2 text-xs font-semibold text-white disabled:opacity-50 shadow-md active:scale-95"
           >
             <Save className="w-3.5 h-3.5" />
-            <span>{isSaving ? 'Aplicando Hot-Reload...' : 'Salvar & Atualizar Bot'}</span>
+            <span>
+              {isSaving
+                ? 'Aplicando Hot-Reload...'
+                : tokenEncrypted?.startsWith('site:')
+                ? 'Salvar & Atualizar Site'
+                : 'Salvar & Atualizar Bot'}
+            </span>
           </button>
         </div>
       </div>

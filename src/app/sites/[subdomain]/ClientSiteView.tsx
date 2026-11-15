@@ -13,19 +13,22 @@ import {
   AlertCircle,
   ArrowRight,
   Terminal,
-  Activity
+  Activity,
+  Layers
 } from 'lucide-react';
 import { AethelBot } from '@/lib/types';
 
 interface ClientSiteViewProps {
   subdomain: string;
   bot: AethelBot | null;
+  htmlContent?: string | null;
 }
 
-export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) {
+export default function ClientSiteView({ subdomain, bot, htmlContent }: ClientSiteViewProps) {
   const [latency, setLatency] = useState<number | null>(null);
   const [isTesting, setIsTesting] = useState(false);
   const [uptimeSeconds, setUptimeSeconds] = useState(120);
+  const [isBadgeOpen, setIsBadgeOpen] = useState(false);
 
   useEffect(() => {
     const timer = setInterval(() => {
@@ -102,7 +105,7 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
           </div>
           <div className="space-y-1.5">
             <span className="px-3 py-1 rounded-full bg-rose-500/20 text-rose-300 font-mono text-xs font-semibold border border-rose-500/30">
-              APLICAÇÃO PAUSADA
+              SITE PAUSADO
             </span>
             <h1 className="text-2xl font-bold tracking-tight text-white mt-2">
               {bot.bot_name}
@@ -125,15 +128,72 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
     );
   }
 
-  // CASO 3: Aplicação Online 100% Ativa (Live Apple Glass Template)
+  // CASO 3: O SITE DO USUÁRIO POSSUI HTML REAL (ESTILO VERCEL / GITHUB PAGES)
+  // RENDERIZA O SITE REAL DO USUÁRIO EM TELA CHEIA!
+  if (htmlContent) {
+    return (
+      <div className="fixed inset-0 w-screen h-screen overflow-hidden bg-black z-50">
+        {/* Iframe em tela cheia renderizando o HTML/CSS/JS do usuário de forma 100% isolada e segura */}
+        <iframe
+          srcDoc={htmlContent}
+          title={bot.bot_name || subdomain}
+          className="w-full h-full border-none m-0 p-0 block bg-black"
+          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-modals"
+        />
+
+        {/* Badge Flutuante Vercel/Aethelkov Style no Canto Inferior Direito */}
+        <div className="fixed bottom-3 right-3 z-[9999] font-sans">
+          {isBadgeOpen ? (
+            <div className="p-3.5 rounded-2xl bg-black/85 border border-white/20 backdrop-blur-xl shadow-2xl text-xs space-y-2 max-w-xs animate-fadeIn">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <strong className="text-white text-xs font-semibold">{bot.bot_name}</strong>
+                </div>
+                <button
+                  onClick={() => setIsBadgeOpen(false)}
+                  className="text-neutral-400 hover:text-white text-xs px-1"
+                >
+                  ✕
+                </button>
+              </div>
+              <p className="text-[11px] text-neutral-300 leading-tight">
+                Site hospedado com subdomínio próprio e SSL TLS 1.3 na malha <strong>Aethelkov</strong>.
+              </p>
+              <div className="pt-1 flex items-center justify-between text-[10px] font-mono border-t border-white/10 text-neutral-400">
+                <span className="text-emerald-400">SSL Ativo</span>
+                <a
+                  href="https://linkthelkov.online"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-cyan-400 hover:text-cyan-300 underline"
+                >
+                  Criar meu site ↗
+                </a>
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setIsBadgeOpen(true)}
+              className="group flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black/90 text-neutral-300 hover:text-white border border-white/20 backdrop-blur-md text-[11px] font-mono shadow-2xl transition-all hover:scale-105 active:scale-95"
+            >
+              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="text-neutral-400 group-hover:text-neutral-200">Hospedado na</span>
+              <strong className="text-white font-semibold">Aethelkov</strong>
+            </button>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // CASO 4: Fallback se ainda não tiver HTML (Aplicação Web / Backend ou Inicialização)
   return (
     <div className="min-h-screen bg-[#050609] text-white flex flex-col items-center justify-center p-4 sm:p-6 selection:bg-cyan-500/30 relative overflow-hidden">
-      {/* Luzes de Fundo Ambientais */}
       <div className="pointer-events-none absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[400px] bg-gradient-to-b from-cyan-500/15 via-emerald-500/10 to-transparent blur-[120px]" />
       <div className="pointer-events-none absolute -bottom-40 right-10 w-[500px] h-[350px] bg-indigo-500/10 blur-[100px]" />
 
       <main className="w-full max-w-2xl rounded-[32px] bg-gradient-to-b from-white/[0.08] to-white/[0.02] border border-white/15 p-6 sm:p-10 backdrop-blur-3xl shadow-[0_30px_90px_rgba(0,0,0,0.8)] relative z-10 space-y-6">
-        {/* Badge Status */}
         <div className="flex items-center justify-between">
           <div className="inline-flex items-center gap-2.5 px-3.5 py-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/35 text-emerald-400 text-xs font-mono font-semibold">
             <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse" />
@@ -145,17 +205,15 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
           </span>
         </div>
 
-        {/* Título & Descrição */}
         <div className="space-y-2">
           <h1 className="text-3xl sm:text-4xl font-extrabold tracking-tight bg-gradient-to-r from-white via-cyan-100 to-emerald-200 bg-clip-text text-transparent">
-            Seu Site Está no Ar com Sucesso! 🚀
+            {bot.bot_name} no Ar! 🚀
           </h1>
           <p className="text-sm text-neutral-400 leading-relaxed">
-            Esta aplicação web está rodando na infraestrutura distribuída da <strong>Aethelkov</strong> com proxy reverso inteligente, roteamento por subdomínio e terminação SSL/TLS automática.
+            Seu subdomínio está pronto e ativo com terminação SSL automática. Adicione ou edite um arquivo <code className="text-cyan-300 font-mono">index.html</code> no editor para renderizar seu site completo.
           </p>
         </div>
 
-        {/* URL Pública */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 p-3.5 rounded-2xl bg-black/60 border border-white/10 font-mono text-xs">
           <span className="text-neutral-500 flex items-center gap-1.5">
             <Globe className="w-4 h-4 text-cyan-400" />
@@ -166,7 +224,6 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
           </span>
         </div>
 
-        {/* Grid de Métricas */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 font-mono text-xs">
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
             <span className="text-[10px] text-neutral-500 block mb-1 uppercase">Aplicação</span>
@@ -175,7 +232,7 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
 
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
             <span className="text-[10px] text-neutral-500 block mb-1 uppercase">Arquivo Main</span>
-            <strong className="text-cyan-300 text-sm truncate block">{bot.main_file || 'server.js'}</strong>
+            <strong className="text-cyan-300 text-sm truncate block">{bot.main_file || 'index.html'}</strong>
           </div>
 
           <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
@@ -191,7 +248,6 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
           </div>
         </div>
 
-        {/* Ação: Testar Ping & Latência */}
         <div className="pt-2 flex flex-col sm:flex-row items-center gap-3">
           <button
             type="button"
@@ -201,7 +257,7 @@ export default function ClientSiteView({ subdomain, bot }: ClientSiteViewProps) 
           >
             <Zap className={`w-4 h-4 ${isTesting ? 'animate-spin text-amber-300' : 'text-cyan-300'}`} />
             <span>
-              {isTesting ? 'Medindo latência...' : latency !== null ? `Latência: ${latency}ms (Excelente!)` : '⚡ Testar Resposta da API em Tempo Real'}
+              {isTesting ? 'Medindo latência...' : latency !== null ? `Latência: ${latency}ms (Excelente!)` : '⚡ Testar Latência de Rede'}
             </span>
           </button>
 

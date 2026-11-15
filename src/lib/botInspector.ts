@@ -139,6 +139,15 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
   let isSite = false;
   let detectedSubdomain: string | undefined = undefined;
 
+  // Auto-detecção de Site Estático se contiver index.html
+  const indexHtmlEntry = zip.file('index.html') || zip.file('index.htm');
+  if (indexHtmlEntry) {
+    isSite = true;
+    mainFile = 'index.html';
+    detectedPlatform = 'DISCORD';
+    platformReason = 'Site Web Estático (index.html detectado)';
+  }
+
   if (configRaw) {
     const lines = configRaw.split(/\r?\n/);
     for (const line of lines) {
@@ -191,6 +200,8 @@ export async function inspectZipBot(zip: JSZip, manualToken?: string | null): Pr
     detectedLanguage = 'python';
   } else if (mainFile.endsWith('.jar')) {
     detectedLanguage = 'java';
+  } else if (mainFile.endsWith('.html') || mainFile.endsWith('.htm')) {
+    detectedLanguage = 'other';
   }
 
   // 2. Inspeciona package.json (se existir)

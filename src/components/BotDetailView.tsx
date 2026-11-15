@@ -557,6 +557,18 @@ export const BotDetailView: React.FC<BotDetailViewProps> = ({
 
               {/* Action Buttons */}
               <div className="grid grid-cols-2 sm:flex sm:items-center gap-2 w-full md:w-auto">
+                {isSite && siteFullUrl && (
+                  <a
+                    href={siteFullUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="apple-pill-btn apple-pill-primary rounded-full px-4 py-2 text-xs font-semibold text-white flex items-center justify-center gap-1.5 shadow-lg hover:scale-105 transition-all"
+                  >
+                    <Globe className="w-3.5 h-3.5" />
+                    <span>Ver Site no Ar ↗</span>
+                  </a>
+                )}
+
                 {bot.platform === 'TELEGRAM' && (
                   <button
                     onClick={async () => {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabase } from '@/lib/supabase';
+import { activatePlanSubscription } from '@/lib/subscriptionManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -84,40 +85,10 @@ export async function GET(req: NextRequest) {
     }
 
     // ========================================================
-    // ENTREGA IMEDIATA DE RAM (GBs) NO BANCO DO USUÁRIO
+    // ENTREGA IMEDIATA DE RAM (GBs) NO BANCO DO USUÁRIO & ATIVAÇÃO DE 30 DIAS
     // ========================================================
     if (isApproved) {
-      try {
-        // Atualiza a cota real no perfil (tabela profiles do Supabase)
-        if (userId && userId !== 'default-user' && userId !== 'anon') {
-          await supabase
-            .from('profiles')
-            .update({ 
-              quota_limit_mb: ramMb, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', userId);
-        } else {
-          // Atualiza perfil ativo
-          await supabase
-            .from('profiles')
-            .update({ 
-              quota_limit_mb: ramMb, 
-              updated_at: new Date().toISOString() 
-            })
-            .not('id', 'is', null);
-        }
-      } catch (profErr) {
-        console.error('[MercadoPago] Erro ao atualizar quota em profiles:', profErr);
-      }
-
-      // Registra nos logs da plataforma
-      try {
-        await supabase.from('aethel_logs').insert({
-          log_level: 'INFO',
-          message: `[Mercado Pago] Pagamento #${paymentId} APROVADO! +${ramMb} MB de RAM (Plano ${planId.toUpperCase()}) entregues com sucesso ao usuário.`,
-        });
-      } catch (_) {}
+      await activatePlanSubscription(userId, planId, ramMb);
     }
 
     return NextResponse.json({

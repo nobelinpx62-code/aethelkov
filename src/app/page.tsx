@@ -22,6 +22,7 @@ import {
   getUserBonusData, 
   UserGift 
 } from '@/lib/promoService';
+import { checkUserSubscription } from '@/lib/subscriptionManager';
 
 export default function DashboardPage() {
   const [bots, setBots] = useState<AethelBot[]>([]);
@@ -52,8 +53,9 @@ export default function DashboardPage() {
   const [isAdminAuthModalOpen, setIsAdminAuthModalOpen] = useState(false);
   const [isAdminPanelOpen, setIsAdminPanelOpen] = useState(false);
 
-  // Estados de Cota Real (Mercado Pago), Presentes & Promo Codes de RAM
+  // Estados de Cota Real (Mercado Pago), Assinatura de 30 dias, Presentes & Promo Codes de RAM
   const [purchasedQuotaMb, setPurchasedQuotaMb] = useState<number>(100);
+  const [subscription, setSubscription] = useState<any>(null);
   const [extraRamMb, setExtraRamMb] = useState<number>(0);
   const [pendingGift, setPendingGift] = useState<UserGift | null>(null);
   const [isRedeemModalOpen, setIsRedeemModalOpen] = useState<boolean>(false);
@@ -103,6 +105,18 @@ export default function DashboardPage() {
       setPendingGift(null);
       return;
     }
+
+    // Verifica ciclo de 30 dias da assinatura no Mercado Pago
+    checkUserSubscription(currentUser.id).then((sub) => {
+      setSubscription(sub);
+      if (sub.isActive && sub.ramMb) {
+        setPurchasedQuotaMb(Math.max(sub.ramMb, 100));
+      } else if (sub.isExpired) {
+        setPurchasedQuotaMb(100);
+        setNotification('⚠️ Seu plano de 30 dias expirou. A cota retornou para 100 MB (Starter Free). Renove a qualquer momento na aba Planos!');
+        setTimeout(() => setNotification(null), 10000);
+      }
+    });
 
     // Carrega cota contratada via Mercado Pago na tabela profiles do Supabase
     supabase
@@ -403,7 +417,13 @@ export default function DashboardPage() {
                 {/* Cartões de Telemetria e Alocação (com Cota + Bônus de Presente) */}
                 {activeNavTab === 'overview' && (
                   <section className="w-full">
-                    <MetricsBanner stats={stats} bots={bots} extraRamMb={extraRamMb} />
+                    <MetricsBanner 
+                      stats={stats} 
+                      bots={bots} 
+                      extraRamMb={extraRamMb} 
+                      totalQuotaMb={totalQuotaMb} 
+                      subscription={subscription} 
+                    />
                   </section>
                 )}
 

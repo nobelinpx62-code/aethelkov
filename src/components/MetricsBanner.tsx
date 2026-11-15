@@ -8,10 +8,18 @@ interface MetricsBannerProps {
   stats: ClusterStats;
   bots?: AethelBot[];
   extraRamMb?: number;
+  totalQuotaMb?: number;
+  subscription?: any;
 }
 
-export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [], extraRamMb = 0 }) => {
-  const quotaMb = 100 + extraRamMb;
+export const MetricsBanner: React.FC<MetricsBannerProps> = ({ 
+  stats, 
+  bots = [], 
+  extraRamMb = 0,
+  totalQuotaMb,
+  subscription 
+}) => {
+  const quotaMb = totalQuotaMb || (100 + extraRamMb);
   // Todas as instâncias cadastradas (sejam online ou paradas) reservam no mínimo 100 MB da cota
   const allocatedRam = bots.reduce((sum, b) => sum + Math.max(b.ram_limit_mb || 100, 100), 0);
   const usedRamMb = Math.min(allocatedRam, quotaMb);
@@ -114,11 +122,15 @@ export const MetricsBanner: React.FC<MetricsBannerProps> = ({ stats, bots = [], 
               ? `Cota esgotada: ${allocatedRam} MB / ${quotaMb} MB (100% reservado)`
               : `${allocatedRam} MB de ${quotaMb} MB reservado (${bots.length} aplicação)`}
           </span>
-          {isAtLimit && (
+          {subscription?.isActive ? (
+            <span className="text-[10px] text-cyan-400 font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-cyan-500/10 border border-cyan-500/20">
+              Plano {subscription.planId.toUpperCase()} &bull; {subscription.daysRemaining}d restantes
+            </span>
+          ) : isAtLimit ? (
             <span className="text-[10px] text-rose-400 font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-rose-500/10 border border-rose-500/20">
               100% Cota
             </span>
-          )}
+          ) : null}
         </div>
       </div>
 

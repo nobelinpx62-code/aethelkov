@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import crypto from 'crypto';
 import { supabase } from '@/lib/supabase';
+import { activatePlanSubscription } from '@/lib/subscriptionManager';
 
 export const dynamic = 'force-dynamic';
 
@@ -115,38 +116,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ========================================================
-    // ENTREGA AUTOMÁTICA DE RAM AO CLIENTE VIA WEBHOOK
+    // ENTREGA AUTOMÁTICA DE RAM AO CLIENTE VIA WEBHOOK & ATIVAÇÃO DE 30 DIAS
     // ========================================================
     if (isApproved) {
-      try {
-        if (userId && userId !== 'default-user' && userId !== 'anon') {
-          await supabase
-            .from('profiles')
-            .update({ 
-              quota_limit_mb: ramMb, 
-              updated_at: new Date().toISOString() 
-            })
-            .eq('id', userId);
-        } else {
-          await supabase
-            .from('profiles')
-            .update({ 
-              quota_limit_mb: ramMb, 
-              updated_at: new Date().toISOString() 
-            })
-            .not('id', 'is', null);
-        }
-      } catch (profErr) {
-        console.error('[MercadoPago Webhook] Erro ao atualizar quota_limit_mb em profiles:', profErr);
-      }
-
-      // Registra nos logs
-      try {
-        await supabase.from('aethel_logs').insert({
-          log_level: 'INFO',
-          message: `[Webhook Mercado Pago] Pagamento #${id} de R$ ${amount} APROVADO! +${ramMb} MB de RAM liberados instantaneamente para o usuário.`,
-        });
-      } catch (_) {}
+      await activatePlanSubscription(userId, planId, ramMb);
     }
 
     return NextResponse.json({ status: 'ok', approved: isApproved, id });

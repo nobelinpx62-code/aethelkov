@@ -117,6 +117,37 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [isCreatingPromo, setIsCreatingPromo] = useState(false);
   const [copiedCodeId, setCopiedCodeId] = useState<string | null>(null);
 
+  // Estados de Keep-Alive e Limpeza do Supabase
+  const [isPingingKeepalive, setIsPingingKeepalive] = useState(false);
+  const [keepaliveResult, setKeepaliveResult] = useState<{
+    timestamp: string;
+    duration_ms: number;
+    message: string;
+  } | null>(null);
+
+  const handleTriggerKeepalive = async () => {
+    setIsPingingKeepalive(true);
+    try {
+      const res = await fetch('/api/cron/keepalive?key=aethelkov-keepalive-secret');
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setKeepaliveResult({
+          timestamp: new Date().toLocaleTimeString('pt-BR'),
+          duration_ms: data.duration_ms,
+          message: data.message
+        });
+        setAdminToast('Keep-Alive Supabase executado: Leitura, Escrita e Limpeza de Espaço efetuadas com sucesso!');
+        setTimeout(() => setAdminToast(null), 4000);
+      } else {
+        throw new Error(data.error || 'Falha no keep-alive');
+      }
+    } catch (err: any) {
+      alert('Erro no Keep-Alive: ' + (err.message || 'Falha de conexão'));
+    } finally {
+      setIsPingingKeepalive(false);
+    }
+  };
+
   // Carrega listas de promos e presentes
   useEffect(() => {
     setPromoCodesList(getPromoCodes());
@@ -1559,6 +1590,68 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               <span className="text-white block">Hash SHA-256 (kauan0906)</span>
               <span className="text-purple-400 text-[10px] block">Proteção Criptográfica no Cliente</span>
             </div>
+          </div>
+
+          {/* CARD SUPABASE KEEP-ALIVE & AUTO-PURGE */}
+          <div className="mt-4 p-5 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-black/40 to-cyan-500/5 border border-emerald-500/20 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-emerald-500/20 border border-emerald-500/30 text-emerald-400">
+                  <Database className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                    <span>Supabase Keep-Alive 24/7 & Auto-Purge de Espaço</span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                      ATIVO
+                    </span>
+                  </h4>
+                  <p className="text-[11px] text-neutral-400 mt-0.5 font-sans">
+                    Reinicia o contador de inatividade de 7 dias do Supabase todo dia e <b>apaga imediatamente</b> cada requisição de ping, liberando 100% do espaço para os dados da sua aplicação.
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={handleTriggerKeepalive}
+                disabled={isPingingKeepalive}
+                className="px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-50 text-black font-semibold text-xs flex items-center gap-2 shrink-0 transition-all shadow-[0_0_20px_rgba(16,185,129,0.3)] cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isPingingKeepalive ? 'animate-spin' : ''}`} />
+                <span>{isPingingKeepalive ? 'Processando Ping...' : 'Disparar Ping & Limpar Espaço'}</span>
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-1 text-[11px]">
+              <div className="p-2.5 rounded-xl bg-black/50 border border-white/5 space-y-0.5">
+                <span className="text-neutral-500 text-[10px] block">CRON AUTOMÁTICO VERCEL</span>
+                <span className="text-emerald-300 font-mono">0 12 * * * (12:00 UTC)</span>
+                <span className="text-neutral-400 text-[10px] block font-sans">Disparo diário nativo via /api/cron/keepalive</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/50 border border-white/5 space-y-0.5">
+                <span className="text-neutral-500 text-[10px] block">ENDPOINT SEGURO 24/7</span>
+                <span className="text-cyan-300 font-mono">/api/cron/keepalive</span>
+                <span className="text-neutral-400 text-[10px] block font-sans">Protegido por Bearer Key & User-Agent</span>
+              </div>
+              <div className="p-2.5 rounded-xl bg-black/50 border border-white/5 space-y-0.5">
+                <span className="text-neutral-500 text-[10px] block">POLÍTICA DE ARMAZENAMENTO</span>
+                <span className="text-purple-300 font-mono">Zero Bloat (0 Bytes)</span>
+                <span className="text-neutral-400 text-[10px] block font-sans">Insert ➔ Delete instantâneo no Supabase</span>
+              </div>
+            </div>
+
+            {keepaliveResult && (
+              <div className="p-3 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
+                  <span>{keepaliveResult.message}</span>
+                </div>
+                <span className="font-mono text-[10px] text-neutral-400 shrink-0">
+                  {keepaliveResult.duration_ms}ms às {keepaliveResult.timestamp}
+                </span>
+              </div>
+            )}
           </div>
         </section>
       )}
